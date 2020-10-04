@@ -32,12 +32,16 @@ cef.result(
         end_datetime = '2020-4-1',
         y = ['cd'],
         var_pit = [['cd',1]],
-        var_norm = [['volume',1,10,'std'],['cd',1,10,'mean'],['cd',1,10,'std']],
+        var_norm = [['volume',1,10,'std'],['nav',1,10,'mean'],['cd',1,10,'mean'],['cd',1,10,'std']],
         fix = ['assetclasslevel3'],
         cluster = ['year','ticker']
         )
 cef.summary()
 
+
+#table = cef.data
+#test: 2013-2016
+#try premium/discount group seperately
 
 """
 
