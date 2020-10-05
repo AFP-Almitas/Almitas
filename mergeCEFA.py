@@ -37,7 +37,10 @@ data = data.loc[data['Ticker'].isin(data_ticker[inCEFA==1])]
 # merged and retain all rows in data
 merged = data.merge(CEFA_data, how='left', left_on=['Ticker', 'date'], right_on=['Ticker', 'FileDate'])
 
+# remove ticker column and retain Ticker column
+merged = merged.drop(columns = ['ticker', 'InceptionDate'])
+
 # fill NA values using forward-filling method
-merged['PctSharesOwnedbyInstitutions'] = merged.groupby(['ticker'])['PctSharesOwnedbyInstitutions'].fillna(method='pad')
+merged['PctSharesOwnedbyInstitutions'] = merged.groupby(['Ticker'])['PctSharesOwnedbyInstitutions'].fillna(method='pad')
 
 merged.to_csv (r'C:\Users\cauch\Documents\PC Docs\MFE\Courses\AFP\Almitas Data\Data\merged.csv', index = False, header=True)
