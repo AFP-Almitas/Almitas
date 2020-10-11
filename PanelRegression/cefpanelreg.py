@@ -55,6 +55,10 @@ class CEFpanelreg:
         # check valid lags, drop later before regression
         self.__CheckValidLag()
         
+        # compute return
+        self.data['lpriceclose'] = self.data[['ticker','priceclose']].groupby('ticker').shift(1)  
+        self.data['ret'] = self.data['priceclose']/self.data['lpriceclose'] - 1
+        
         # change in discount
         self.data['lpd'] = self.data[['ticker','pd']].groupby('ticker').shift(1)
         self.data['cd'] = self.data['pd'] - self.data['lpd']
@@ -78,6 +82,13 @@ class CEFpanelreg:
         # change in shares owned by retail
         self.data['lretailshares'] = self.data[['ticker','retailshares']].groupby('ticker').shift(1)
         self.data['retailshareschg'] = self.data['retailshares'] - self.data['lretailshares']
+        
+        # nav change
+        self.data['lnav'] = self.data[['ticker','nav']].groupby('ticker').shift(1)     
+        self.data['navchg'] = self.data['nav'] - self.data['lnav']
+        
+        # select only rows that has valid weekly data
+        self.data = self.data.loc[self.data.validweekly==True]     # use this only for weekly data
         
         # column reference
         c = len(self.data.columns)
