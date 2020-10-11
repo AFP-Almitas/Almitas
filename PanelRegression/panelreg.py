@@ -12,7 +12,7 @@ from cefpanelreg import CEFpanelreg
 STEP1: Input file name
 """
 
-filename = 'US_data.csv'
+filename = 'mergedWeekly.csv'
 
 """
 STEP2: Input parameters for regression
@@ -28,11 +28,11 @@ STEP2: Input parameters for regression
 
 cef = CEFpanelreg(filename)
 cef.result(
-        start_datetime = '2019-02-01',
-        end_datetime = '2020-4-1',
+        start_datetime = '2013-01-01',
+        end_datetime = '2016-12-31',
         y = ['cd'],
-        var_pit = [['cd',1]],
-        var_norm = [['volume',1,10,'std'],['nav',1,10,'mean'],['cd',1,10,'mean'],['cd',1,10,'std']],
+        var_pit = [['cd',1], ['pd',1], ['navchg',1]],
+        var_norm = [['cd',1,2,'mean']],
         fix = ['assetclasslevel3'],
         cluster = ['year','ticker']
         )
