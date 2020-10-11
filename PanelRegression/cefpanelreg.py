@@ -91,7 +91,7 @@ class CEFpanelreg:
         self.data = self.data.loc[self.data.validweekly==True]     # use this only for weekly data
         
         # column reference
-        c = len(self.data.columns)
+        self.c = len(self.data.columns)
         
         # Point-in-time variables
         for var in var_pit:
@@ -119,15 +119,15 @@ class CEFpanelreg:
             func_dict[f](self.data,lag,length,variable)
         
         # fit regression and return results
-        result = self.__fitreg(self.data, start_datetime, end_datetime, y, var_pit, var_norm, fix, cluster, c)
+        self.result = self.__fitreg(self.data, start_datetime, end_datetime, y, var_pit, var_norm, fix, cluster, self.c)
         
         # extract .nobs, .rsquared, .params, .tstats
-        self.sumstat['R2'] = round(result.rsquared,4)
-        self.sumstat['N'] = result.nobs
-        self.sumstat['Coefficient'] = round(result.params,4)
-        self.sumstat['t-stat'] = round(result.tstats,4)
+        self.sumstat['R2'] = round(self.result.rsquared,4)
+        self.sumstat['N'] = self.result.nobs
+        self.sumstat['Coefficient'] = round(self.result.params,4)
+        self.sumstat['t-stat'] = round(self.result.tstats,4)
         
-        return result
+        return self.result
 
     def summary(self):
         
