@@ -39,6 +39,65 @@ cef.result(
 cef.summary()
 
 
+# backtest
+from sklearn.preprocessing import LabelBinarizer
+
+# filter dates
+start_datetime = '2017-01-01'
+end_datetime = '2017-12-31'
+
+validation = cef.data.loc[(cef.data['date']>=start_datetime) & (cef.data['date']<=end_datetime)]
+
+# filter columns
+y = ['cd']
+fix = ['assetclasslevel3']
+validation = validation[y + ['year','ticker'] + [col for col in validation.columns[cef.c:]] + fix + ['date', 'ret']]
+validation = validation.dropna()
+validation = validation.set_index(['ticker','year'])
+
+fit = cef.result
+coef = fit._params
+
+indeptvar = validation.iloc[:,1:-3]
+asset = validation.assetclasslevel3.unique()
+fix_asfactors = LabelBinarizer().fit_transform(validation.assetclasslevel3)
+
+intercept = np.mat(np.repeat(1,len(validation)))
+x = np.append(intercept.T,fix_asfactors, axis=1)
+x = np.append(x, indeptvar, axis=1)
+
+pred = pd.DataFrame(np.matmul(x, coef).T)
+
+validation = validation.reset_index()
+validation = pd.concat([validation, pred], axis=1)
+validation= validation.rename({0: 'cdpred'}, axis='columns')
+
+date = validation['date'].unique()
+
+port = pd.DataFrame(np.zeros((len(date), 2)), columns=['longonly', 'longshort'])
+
+for t in range(0, len(date)) : 
+    # sort CEFs into decile in each week, based on cdpred
+    dt = validation.loc[validation['date']==date[t]]
+    dt['decile'] = pd.qcut(validation['cdpred'], 10, labels=False)
+    
+    # form long only EW portfolio from the top decile
+    port.loc[t, 'longonly'] = np.mean(dt.loc[dt.decile==9]['ret'])
+    
+    # form long-short EW portfolio from the top and bottom decile
+    port.loc[t, 'longshort'] = np.mean(dt.loc[dt.decile==9]['ret']) - \
+        np.mean(dt.loc[dt.decile==0]['ret'])
+    
+portCumRetLong = np.cumprod(1+port['longonly'])
+portCumRetLongShort = np.cumprod(1+port['longshort'])
+
+# plot graphs
+plt.figure(figsize=(10, 6))
+plt.plot(date, portCumRetLong, label='EW long only top-decile portfolio')
+plt.plot(date, portCumRetLongShort, label='EW long-short (top and bottom decile) portfolio')
+plt.ylabel('Cumulative Return')
+plt.legend(loc='lower right')
+
 #table = cef.data
 #test: 2013-2016
 #try premium/discount group seperately
