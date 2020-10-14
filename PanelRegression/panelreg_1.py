@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Sat Jul 18 14:01:43 2020
+Created on Mon Oct  5 14:24:03 2020
 
 @author: kanp
 """
@@ -12,7 +12,7 @@ from cefpanelreg import CEFpanelreg
 STEP1: Input file name
 """
 
-filename = 'merged.csv'
+filename = 'merged2.csv'
 
 """
 STEP2: Input parameters for regression
@@ -28,32 +28,30 @@ STEP2: Input parameters for regression
 
 cef = CEFpanelreg(filename)
 
-collist = cef.data.columns.tolist()
-
-#import pandas as pd
-#pd.DataFrame(cef.data.columns).to_csv('variables.csv')
+dt = cef.data
 
 cef.result(
-        start_datetime = '2019-02-01',
-        end_datetime = '2020-4-1',
+        start_datetime = '2013-01-01',
+        end_datetime = '2016-12-31',
         y = ['cd'],
-        var_pit = [['cd',1]],
-        var_norm = [['volume',1,10,'std'],['nav',1,10,'mean'],['cd',1,10,'mean'],['cd',1,10,'std']],
+        var_pit = [['cd',5]
+                   ,['pd',5]
+                   #,['expratio',5]
+                   ],
+        var_norm = [['cd',5,5,'mean']
+                    #,['navchg',5,5,'mean']
+                    #,['volume',5,5,'mean']
+                    #,['totalyieldchg',1,10,'mean'],['navyieldchg',1,10,'mean']
+                    #,['incyield',1,5,'mean']
+                    ],
         fix = ['assetclasslevel3'],
         cluster = ['year','ticker']
         )
+
 cef.summary()
 
 
 
 
-#table = cef.data
-#test: 2013-2016
-#try premium/discount group seperately
-
-"""
-
-# view specific columns
-cef(['ticker','volume'])
-
-"""
+dt.groupby(['assetclasslevel3'])['x'].count()
+test=dt[dt.assetclasslevel3=='Mortgage']

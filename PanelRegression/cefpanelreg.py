@@ -22,7 +22,7 @@ class CEFpanelreg:
     def __init__(self, file):
         self.filename = str(file)
         print('Importing data...')
-        data = pd.read_csv(self.filename, index_col = 0)
+        data = pd.read_csv(self.filename, index_col = 0) #0 default
         data.columns = [x.lower() for x in data.columns]
         data['date'] = pd.to_datetime(data['date'])
         print('Import success')
@@ -33,8 +33,8 @@ class CEFpanelreg:
         self.__Checkcol(collist, self.data)
     
     def result(self,
-               start_datetime = datetime(2020, 1, 1),
-               end_datetime = datetime(2000, 1, 1),
+               start_datetime = datetime(2010, 1, 1),
+               end_datetime = datetime(2020, 1, 1),
                y = ['cd'],
                var_pit = [],
                var_norm = [],
@@ -54,12 +54,16 @@ class CEFpanelreg:
         # check valid lags, drop later before regression
         self.__CheckValidLag()
         
-        # change in discount
-        self.data['lpd'] = self.data[['ticker','pd']].groupby('ticker').shift(1)
+        # change in discount (try 5 days)
+        self.data['lpd'] = self.data[['ticker','pd']].groupby('ticker').shift(5)
         self.data['cd'] = self.data['pd'] - self.data['lpd']
         
         # age
         self.data['age'] = (self.data['date']-self.data['inceptiondate']).dt.days
+        
+        # daily return
+        self.data['lpriceclose'] = self.data[['ticker','priceclose']].groupby('ticker').shift(1)  
+        self.data['ret'] = self.data['priceclose']/self.data['lpriceclose'] - 1
         
         # column reference
         c = len(self.data.columns)
