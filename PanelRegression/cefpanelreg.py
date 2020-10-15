@@ -216,6 +216,8 @@ class CEFpanelreg:
         dt = dt.dropna()
         #print("Filling NAs done.")
         dt = dt.set_index(['ticker','year'])
+        
+        self.assetclass = dt[fix].drop_duplicates().reset_index(drop=True)
           
         if len(fix) == 0 and len(cluster) == 0:
             mod = PanelOLS.from_formula(y[0] + '~1+' + x, data = dt)
