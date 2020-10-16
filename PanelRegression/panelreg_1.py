@@ -55,3 +55,17 @@ cef.summary()
 
 dt.groupby(['assetclasslevel3'])['x'].count()
 test=dt[dt.assetclasslevel3=='Mortgage']
+
+
+
+cef.result(
+        start_datetime = '2013-01-01',
+        end_datetime = '2016-12-31',
+        y = ['cd'],
+        var_pit = [],
+        var_norm = [['cd',5,5,'mean']
+                    ,['volume',5,5,'mean']
+                    ],
+        fix = ['assetclasslevel3'],
+        cluster = ['year','ticker']
+        )

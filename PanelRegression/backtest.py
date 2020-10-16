@@ -17,48 +17,93 @@ filename = 'merged2.csv'
 """
 STEP2: Input parameters for backtest
 method 1) ['scoring',factor weight,'ew' or 'vw',#quintile]
-method 2) []
-method 3) []
+method 2) ['model']
+method 3) ['mve',lookback period,starttrain,endtrain,'ew' or 'vw',#quintile] 
+freq: ['weekly'] or ['monthly',0 beginning of month or 1 end of month]
 """
 
+############### weekly #####################
+
 cef = CEFbacktest(filename)
+data = cef.data
 
-dt = cef.data
-
-dt2 = cef.backtest(
-    start_datetime = '2013-01-01',
-    end_datetime = '2016-12-31',
-    assetclass1 = 'Equity',
-    alpha = {'pit':[],
-             'norm':[['cd',5,5,'mean'],['volume',5,5,'mean']]},
-    method = ['scoring', #'scoring' or 'model' or 'mve'
-              {'pit':[],'norm':[0.5,0.5]},
-              'vw',
-              10], 
-    freq = ['weekly'], #['weekly'] or ['monthly',0 beginning of month or 1 end of month]
+dt = cef.backtest(
+    start_datetime = '2017-01-01',
+    end_datetime = '2017-12-31',
+    assetclass1 = ['Equity','Fixed Income','Commodity'],
+    alpha = {'pit':[['cd',5],['pd',5],['navchg',5]],
+             'norm':[['cd',5,10,'mean'],['navchg',5,10,'mean']]},
+    method = ['mve',10,'2013-01-01','2016-12-31','ew',10],
+    #method = ['scoring',{'pit':[],'norm':[0.8,0.2]},'ew',10],
+    freq = ['weekly'],
+    transcost = 0,
     compare = False)
 
+cef.plottest()
 
 
-dt3=dt2.groupby(['year','week'])['date'].transform(lambda x: len(x.unique()))
-dt4=dt2.groupby(['year','week']).agg({'ndate':'sum'})
+############### monthly ####################
 
-         
-        alpha_standard = dt2[dt2.columns[-2:]]
-        
-        
-        print(alpha_standard.dot(w))
-        
+cef = CEFbacktest(filename)
+data = cef.data
 
 
+dt = cef.backtest(
+    start_datetime = '2017-01-01',
+    end_datetime = '2018-12-31',
+    assetclass1 = ['Equity','Fixed Income','Commodity'],
+    alpha = {'pit':[['cd',22],['pd',22],['navchg',22]],
+             'norm':[['cd',22,10,'mean'],['navchg',5,10,'mean']]},
+    method = ['mve',10,'2013-01-01','2016-12-31','ew',10],
+    #method = ['scoring',{'pit':[],'norm':[0.8,0.2]},'ew',10],
+    freq = ['monthly',0],
+    transcost = 20,
+    compare = False)
+
+cef.plottest()
 
 
 
-dt2
-
-result = cef.backtest(
-    start_datetime = '2013-01-01',
-    end_datetime = '2016-12-31')
 
 
-cef
+
+
+
+
+
+cef.data
+cef.c
+inp = cef.input
+coef = cef.coef
+coefasset = cef.coefasset
+assettrain = cef.assettrain
+misstrain = cef.missingtrain
+interceptasset = cef.interceptasset
+indeptvar = cef.indeptvar
+df = cef.df0
+fix_asfactors = cef.fix_asfactors
+x = cef.x
+port = cef.port
+pred = cef.pred
+
+
+
+
+import numpy as np
+import matplotlib.pyplot as plt
+import pandas as pd
+
+
+
+
+
+
+
+
+
+
+port = cef.port
+holding = cef.holding
+cost = cef.cost
+inp = cef.input
+d1 = cef.d1

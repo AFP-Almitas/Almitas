@@ -94,7 +94,7 @@ class CEFpanelreg:
             func_dict[f](self.data,lag,length,variable)
         
         # fit regression and return results
-        result = self.__fitreg(self.data, start_datetime, end_datetime, y, var_pit, var_norm, fix, cluster, c)
+        result = self.fitreg(self.data, start_datetime, end_datetime, y, var_pit, var_norm, fix, cluster, c)
         
         # extract .nobs, .rsquared, .params, .tstats
         self.sumstat['R2'] = round(result.rsquared,4)
@@ -164,7 +164,7 @@ class CEFpanelreg:
         #self.data['valid'] = [d<limit for d in self.data['dif']]
         self.data.drop(['dif'], axis=1, inplace=True)
         
-    def __fitreg(self,
+    def fitreg(self,
                  dt,
                  start_datetime,
                  end_datetime,
@@ -191,6 +191,8 @@ class CEFpanelreg:
         dt = dt.dropna()
         #print("Filling NAs done.")
         dt = dt.set_index(['ticker','year'])
+        
+        self.assetclass = dt[fix].drop_duplicates().reset_index(drop=True)
           
         if len(fix) == 0 and len(cluster) == 0:
             mod = PanelOLS.from_formula(y[0] + '~1+' + x, data = dt)
