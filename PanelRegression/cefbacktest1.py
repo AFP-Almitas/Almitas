@@ -36,54 +36,11 @@ class CEFbacktest(CEFpanelreg):
         self.data['inceptiondate'] = pd.to_datetime(self.data['inceptiondate'])
         self.data = self.data.drop_duplicates(subset=['ticker','date'],keep='last')
         
-        # change in discount
-        if freq[0]=='weekly':
-            ll = 5
-            self.annualizecoef = 52
-        elif freq[0]=='monthly':
-            ll = 22
-            self.annualizecoef = 12
-        self.data['lpd'] = self.data[['ticker','pd']].groupby('ticker').shift(ll)
-        self.data['cd'] = self.data['pd'] - self.data['lpd']
+
         
-        # column reference
-        c = len(self.data.columns)
-        self.c = c
+
         
-        # Point-in-time variables
-        for var in alpha['pit']:
-            variable,lag = var[0],var[1]
-            self.data[variable+'_'+str(lag)] = self.data.groupby(['ticker'])[variable].shift(lag)
-        
-        # Normalized variables
-        def decor(func):
-            def wrapper(x,y,z,var):
-                print("Creating alpha "+str(var)+" using "+str(z)+"-day "+func.__name__+" from lag "+str(y)+"...")
-                return func(x,y,z,var)
-            return wrapper
-        @decor
-        def mean(df,lag,length,var):
-            df[variable+'_'+str(lag)+'_'+f+str(length)] = df.groupby('ticker')[variable].shift(lag).rolling(length).mean()
-        @decor
-        def std(df,lag,length,var):
-            df[variable+'_'+str(lag)+'_'+f+str(length)] = df.groupby('ticker')[variable].shift(lag).rolling(length).std()
-            
-        func_dict = {'mean':mean,
-                     'std':std}
-        
-        for var in alpha['norm']:
-            variable,lag,length,f = var[0],var[1],var[2],var[3]
-            func_dict[f](self.data,lag,length,variable)
-        
-        self.n_ind = len(alpha['pit']) + len(alpha['norm'])
-            
         df = self.data.copy()
-        
-        # filter asset class
-        df = df.loc[df['assetclasslevel1'].isin(assetclass1)]
-        
-        # filter columns
-        df = df[['year','month','week','date','ticker','assetclasslevel3','priceclose','marketcap.x','cd'] + [col for col in df.columns[c:]]]
 
         # filter weekly OR monthly
         if freq[0]=='weekly':
@@ -127,6 +84,59 @@ class CEFbacktest(CEFpanelreg):
             df = df[(df.dif==1)|((np.isnan(df.dif))&(df.month==12))]
             df.drop(['dif'], axis=1, inplace=True)
 
+        # change in discount
+        if freq[0]=='weekly':
+            ll = 1
+            self.annualizecoef = 52
+        elif freq[0]=='monthly':
+            ll = 1
+            self.annualizecoef = 12
+        df['lpd'] = df[['ticker','pd']].groupby('ticker').shift(ll)
+        df['cd'] = df['pd'] - df['lpd']
+
+
+        # column reference
+        c = len(df.columns)
+        self.c = c
+        
+        # Point-in-time variables
+        for var in alpha['pit']:
+            variable,lag = var[0],var[1]
+            df[variable+'_'+str(lag)] = df.groupby(['ticker'])[variable].shift(lag)
+        
+        # Normalized variables
+        def decor(func):
+            def wrapper(x,y,z,var):
+                print("Creating alpha "+str(var)+" using "+str(z)+"-day "+func.__name__+" from lag "+str(y)+"...")
+                return func(x,y,z,var)
+            return wrapper
+        @decor
+        def mean(df,lag,length,var):
+            df[variable+'_'+str(lag)+'_'+f+str(length)] = df.groupby('ticker')[variable].shift(lag).rolling(length).mean()
+        @decor
+        def std(df,lag,length,var):
+            df[variable+'_'+str(lag)+'_'+f+str(length)] = df.groupby('ticker')[variable].shift(lag).rolling(length).std()
+            
+        func_dict = {'mean':mean,
+                     'std':std}
+
+
+        for var in alpha['norm']:
+            variable,lag,length,f = var[0],var[1],var[2],var[3]
+            func_dict[f](df,lag,length,variable)
+        
+        self.n_ind = len(alpha['pit']) + len(alpha['norm'])
+            
+        
+        
+        # filter asset class
+        df = df.loc[df['assetclasslevel1'].isin(assetclass1)]
+
+        # filter columns
+        df = df[['ticker','year','month','week','date','assetclasslevel3','priceclose','ret','marketcap.x','cd'] + [col for col in df.columns[c:]]]
+        self.c = 10
+        print(df.columns.tolist())
+
         # filter dates
         df = df.loc[(df['date']>=start_datetime) & (df['date']<=end_datetime)]
         
@@ -150,8 +160,8 @@ class CEFbacktest(CEFpanelreg):
         self.df0 = df
         # fit regression to training set
         fix = ['assetclasslevel3']
-        fit = self.fitreg(self.data, start_train, end_train, ['cd'], [], [], fix, ['year','ticker'], self.c)
-        
+        fit = self.fitreg(df, start_train, end_train, ['cd'], [], [], fix, ['year','ticker'], self.c)
+        print('b')
         # extract .nobs, .rsquared, .params, .tstats
         self.sumstat = {}
         self.sumstat['R2'] = round(fit.rsquared,4)
@@ -178,7 +188,7 @@ class CEFbacktest(CEFpanelreg):
         self.coef['index'][0:-self.n_ind] = self.coefasset
         self.coef = self.coef.set_index('index')
         #print(self.coef)
-        
+        print('c')
         # manually create columns of 1 for each asset class
         fix_asfactors = pd.DataFrame(np.zeros((len(df), len(self.coefasset))))
         assetclasscol = df[fix].reset_index(drop=True)
@@ -237,10 +247,10 @@ class CEFbacktest(CEFpanelreg):
         elif portweight=='vw':
             if freq=='weekly':
                 df['N'] = df.groupby(['year','month','week','decile'])['decile'].transform(lambda x: x.count())
-                df['weight'] = df.groupby(['year','month','week','decile'])['marketcap.x'].transform(lambda x: x/x.sum())
+                df['weight'] = df.groupby(['year','month','week','decile'])['priceclose'].transform(lambda x: x/x.sum())
             elif freq=='monthly':
                 df['N'] = df.groupby(['year','month','decile'])['decile'].transform(lambda x: x.count())
-                df['weight'] = df.groupby(['year','month','decile'])['marketcap.x'].transform(lambda x: x/x.sum())
+                df['weight'] = df.groupby(['year','month','decile'])['priceclose'].transform(lambda x: x/x.sum())
         
         
         print('start trans')

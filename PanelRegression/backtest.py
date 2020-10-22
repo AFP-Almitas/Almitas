@@ -33,10 +33,10 @@ dt = cef.backtest(
     assetclass1 = ['Equity','Fixed Income','Commodity'],
     alpha = {'pit':[['cd',5],['pd',5],['navchg',5]],
              'norm':[['cd',5,10,'mean'],['navchg',5,10,'mean']]},
-    method = ['mve',10,'2013-01-01','2016-12-31','ew',10],
+    method = ['mve',10,'2013-01-01','2016-12-31','vw',10],
     #method = ['scoring',{'pit':[],'norm':[0.8,0.2]},'ew',10],
     freq = ['weekly'],
-    transcost = 0,
+    transcost = 1,
     compare = False)
 
 cef.plottest()
@@ -86,7 +86,11 @@ x = cef.x
 port = cef.port
 pred = cef.pred
 
-
+df = cef.d0
+d2 = cef.d2
+d2t = cef.d2t
+d2b = cef.d2b
+d3 = cef.d3
 
 
 import numpy as np
