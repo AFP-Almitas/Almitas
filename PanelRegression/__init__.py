@@ -1,2 +1,0 @@
-from .cefpanelreg import CEFpanelreg
-
