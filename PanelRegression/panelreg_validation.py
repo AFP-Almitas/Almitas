@@ -82,7 +82,7 @@ test_starts = []
 test_ends = []
 all_SE = []
 all_results = pd.DataFrame()
-i=0
+
 for i in range(folds):
     reg_sets.append(regdata.loc[~regdata.date.isin(group_dates[i])])
     test_sets.append(regdata.loc[regdata.date.isin(group_dates[i])])
