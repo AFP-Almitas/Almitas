@@ -23,11 +23,12 @@ filename = 'US_data.csv'
 STEP2: Input parameters for regression
 - start datetime, end datetime in 'YYYY-MM-DD'
 - folds: number of cross-validation sets
-- y: what you want to predict; default is 'cd'
+- y: what you want to predict; default is 'cd', use 'cd5' for weekly cd
 - var_pit: Point-in-time independent variables in [variable, lag]; unit in day
     e.g. ['volume',1] >> regress on lag1 of volume
 - var_norm: Normalized independent variables in [variable, lag, length, func]; unit in day
     e.g. [cd,1,3,mean] >> regress on 3-day mean from lag1 of cd
+    [cd,1,5,sum] >> equals to lag1 of weekly cd
 - fix: Fixed effects; choose one from ['assetclasslevel1','assetclasslevel2','assetclasslevel3']
 - Cluster: Covariance clustering; choose from ['year','ticker']
 """
@@ -39,8 +40,9 @@ end_datetime = '2015-12-31'
 # number of cross-validation sets
 folds = 5
 # parameters for panel reg
-var_pit = [['cd',1], ['pd',1], ['navchg',1]]
-var_norm = [['cd',1,2,'mean']]
+y = ['cd5']
+var_pit = []
+var_norm = [['cd',5,5,'sum'], ['pd',1,5,'mean'], ['navchg',1,5,'sum']]
 fix = ['assetclasslevel3']
 cluster = ['year','ticker']
 
@@ -80,7 +82,7 @@ test_starts = []
 test_ends = []
 all_SE = []
 all_results = pd.DataFrame()
-
+i=0
 for i in range(folds):
     reg_sets.append(regdata.loc[~regdata.date.isin(group_dates[i])])
     test_sets.append(regdata.loc[regdata.date.isin(group_dates[i])])
@@ -99,7 +101,7 @@ for i in range(folds):
     cef.result(
             start_datetime = starts[i],
             end_datetime = ends[i],
-            y = ['cd'],
+            y = y,
             var_pit = var_pit,
             var_norm = var_norm,
             fix = fix,
@@ -109,7 +111,7 @@ for i in range(folds):
     cef_test.result(
             start_datetime = test_starts[i],
             end_datetime = test_ends[i],
-            y = ['cd'],
+            y = y,
             var_pit = var_pit,
             var_norm = var_norm,
             fix = fix,
@@ -127,12 +129,18 @@ for i in range(folds):
     validation = cef_test.data.loc[(cef_test.data['date']>=start_datetime) & (cef_test.data['date']<=end_datetime)]
 
     # filter columns
-    y = ['cd']
+    y = y
     fix = ['assetclasslevel3']
     validation = validation[y + ['year','ticker'] + [col for col in validation.columns[cef.c:]] + fix + ['date', 'ret']]
     validation = validation.dropna()
     validation = validation.set_index(['ticker','year'])
     asset = pd.Series(validation.assetclasslevel3.unique()).sort_values().reset_index(drop=True)
+
+    see = validation.loc[validation['ticker']==validation['ticker',1],]
+    see=validation
+
+    see = see.sort_values(by=['ticker', 'date'])
+
 
     # extract coefficients from fitted model
     fit = cef.result
