@@ -45,6 +45,10 @@ class CEFpanelreg:
         # raise error when start-end date format
         self.__Checkdate(start_datetime, end_datetime)
         
+        # re-arrange and reset index
+        self.data = self.data.sort_values(['ticker', 'date'])
+        self.data = self.data.reset_index()
+        
         # date variables
         self.data['year'] = pd.DatetimeIndex(self.data['date']).year
         self.data['month'] = pd.DatetimeIndex(self.data['date']).month
@@ -63,6 +67,10 @@ class CEFpanelreg:
         #self.data['lpd'] = self.data[['ticker','pd']].groupby('ticker').shift(5)  #1
         self.data['lpd'] = self.data[['ticker','pd']].groupby('ticker').shift(1)  #2
         self.data['cd'] = self.data['pd'] - self.data['lpd']
+        
+        # weekly change in discount
+        self.data['lpd5'] = self.data[['ticker','pd']].groupby('ticker').shift(5)  #2
+        self.data['cd5'] = self.data['pd'] - self.data['lpd5']
         
         # age
         self.data['age'] = (self.data['date']-self.data['inceptiondate']).dt.days
@@ -101,9 +109,13 @@ class CEFpanelreg:
         @decor
         def std(df,lag,length,var):
             df[variable+'_'+str(lag)+'_'+f+str(length)] = df.groupby('ticker')[variable].shift(lag).rolling(length).std()
+        @decor
+        def sum(df,lag,length,var):
+            df[variable+'_'+str(lag)+'_'+f+str(length)] = df.groupby('ticker')[variable].shift(lag).rolling(length).sum()
             
         func_dict = {'mean':mean,
-                     'std':std}
+                     'std':std, 
+                     'sum':sum}
         
         for var in var_norm:
             variable,lag,length,f = var[0],var[1],var[2],var[3]
@@ -196,7 +208,7 @@ class CEFpanelreg:
         dt = dt.loc[(dt['date']>=start_datetime) & (dt['date']<=end_datetime)]
 
         # filter columns
-        dt = dt[y + ['year','ticker'] + [col for col in dt.columns[c:]] + fix]
+        dt = dt[y + ['year','ticker'] + [col for col in dt.columns[self.c:]] + fix]
         
         # choose x
         x = '+'.join(dt.columns[3:])
@@ -242,5 +254,7 @@ class CEFpanelreg:
             
         if len(fix) > 1:
             raise KeyError("You have {} fixed effects! Please pick one.".format(len(fix)))
+
+    
 
     
