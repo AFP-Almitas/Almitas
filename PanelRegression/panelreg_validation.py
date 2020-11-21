@@ -43,7 +43,7 @@ folds = 5
 y = ['cd5']
 var_pit = []
 var_norm = [['cd',5,5,'sum'], ['pd',1,5,'mean'], ['navchg',1,5,'sum']]
-fix = ['assetclasslevel3']
+fix = ['assetclasslevel2']
 cluster = ['year','ticker']
 
 
@@ -130,16 +130,16 @@ for i in range(folds):
 
     # filter columns
     y = y
-    fix = ['assetclasslevel3']
+    fix = fix
     validation = validation[y + ['year','ticker'] + [col for col in validation.columns[cef.c:]] + fix + ['date', 'ret']]
     validation = validation.dropna()
     validation = validation.set_index(['ticker','year'])
-    asset = pd.Series(validation.assetclasslevel3.unique()).sort_values().reset_index(drop=True)
+    asset = pd.Series(validation[fix].iloc[:,0].unique()).sort_values().reset_index(drop=True)
 
-    see = validation.loc[validation['ticker']==validation['ticker',1],]
-    see=validation
+    #see = validation.loc[validation['ticker']==validation['ticker',1],]
+    #see=validation
 
-    see = see.sort_values(by=['ticker', 'date'])
+    #see = see.sort_values(by=['ticker', 'date'])
 
 
     # extract coefficients from fitted model
