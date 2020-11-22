@@ -129,18 +129,10 @@ for i in range(folds):
     validation = cef_test.data.loc[(cef_test.data['date']>=start_datetime) & (cef_test.data['date']<=end_datetime)]
 
     # filter columns
-    y = y
-    fix = ['assetclasslevel3']
     validation = validation[y + ['year','ticker'] + [col for col in validation.columns[cef.c:]] + fix + ['date', 'ret']]
     validation = validation.dropna()
     validation = validation.set_index(['ticker','year'])
-    asset = pd.Series(validation.assetclasslevel3.unique()).sort_values().reset_index(drop=True)
-
-    see = validation.loc[validation['ticker']==validation['ticker',1],]
-    see=validation
-
-    see = see.sort_values(by=['ticker', 'date'])
-
+    asset = pd.Series(validation[fix].iloc[:,0].unique()).sort_values().reset_index(drop=True)
 
     # extract coefficients from fitted model
     fit = cef.result
@@ -184,15 +176,15 @@ for i in range(folds):
     validation= validation.rename({0: 'cdpred'}, axis='columns')
     
     # calculate sum of squared errors
-    validation['diff'] = validation['cd'] - validation['cdpred']
+    validation['diff'] = validation[y].iloc[:,0] - validation['cdpred']
     validation['diff_sqr'] = validation['diff']**2
 
     SE = validation['diff_sqr'].sum()
     all_SE.append(SE)
     
     # store results (SSE, r2, nobs and coef)
-    res = pd.Series(np.append([SE, fit.rsquared, fit.nobs, starts[i], ends[i]], coef))
-    rownames = pd.Series(np.append(['SSE', 'r2', 'nobs'], fit._var_names))
+    res = pd.Series(np.append([SE, fit.rsquared, fit.nobs, test_starts[i], test_ends[i]], coef))
+    rownames = pd.Series(np.append(['SSE', 'r2', 'nobs', 'test set start date', 'test set ends date'], fit._var_names))
     if i==0 :        
         all_results = pd.concat([rownames, res], axis=1)
         all_results.columns = ['row', 'val']
