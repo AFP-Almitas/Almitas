@@ -81,6 +81,8 @@ ends = []
 test_starts = []
 test_ends = []
 all_SE = []
+all_mse = []
+all_train_asset = []
 all_results = pd.DataFrame()
 
 for i in range(folds):
@@ -120,6 +122,7 @@ for i in range(folds):
     
     # backtest
     train_asset = pd.Series(cef.assetclass.iloc[:,0]).sort_values().reset_index(drop=True)
+    all_train_asset.append(train_asset)
     # drop first asset (the intercept)
     coef_asset = train_asset[1:].reset_index(drop=True)
 
@@ -182,9 +185,12 @@ for i in range(folds):
     SE = validation['diff_sqr'].sum()
     all_SE.append(SE)
     
-    # store results (SSE, r2, nobs and coef)
-    res = pd.Series(np.append([SE, fit.rsquared, fit.nobs, test_starts[i], test_ends[i]], coef))
-    rownames = pd.Series(np.append(['SSE', 'r2', 'nobs', 'test set start date', 'test set ends date'], fit._var_names))
+    MSE = validation['diff_sqr'].mean()
+    all_mse.append(MSE)
+    
+    # store results (SSE,MSE, r2, nobs, date of test set and coef)
+    res = pd.Series(np.append([SE, MSE, fit.rsquared, fit.nobs, test_starts[i], test_ends[i]], coef))
+    rownames = pd.Series(np.append(['SSE', 'MSE', 'r2', 'nobs', 'test set start date', 'test set end date'], fit._var_names))
     if i==0 :        
         all_results = pd.concat([rownames, res], axis=1)
         all_results.columns = ['row', 'val']
@@ -200,4 +206,5 @@ all_results.columns= list(range(1,folds+1))
 
 print(all_SE)
 print(sum(all_SE))
+print(np.std(all_mse))
 print(all_results)
