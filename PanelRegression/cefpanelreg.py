@@ -22,7 +22,7 @@ class CEFpanelreg:
     def __init__(self, file):
         self.filename = str(file)
         print('Importing data...')
-        data = pd.read_csv(self.filename, index_col = 0)
+        data = pd.read_csv(self.filename, index_col = 0) #0 default
         data.columns = [x.lower() for x in data.columns]
         data['date'] = pd.to_datetime(data['date'])
         print('Import success')
@@ -33,8 +33,8 @@ class CEFpanelreg:
         self.__Checkcol(collist, self.data)
     
     def result(self,
-               start_datetime = datetime(2020, 1, 1),
-               end_datetime = datetime(2000, 1, 1),
+               start_datetime = datetime(2010, 1, 1),
+               end_datetime = datetime(2020, 1, 1),
                y = ['cd'],
                var_pit = [],
                var_norm = [],
@@ -55,6 +55,7 @@ class CEFpanelreg:
         # check valid lags, drop later before regression
         self.__CheckValidLag()
         
+
         # compute return
         self.data['lpriceclose'] = self.data[['ticker','priceclose']].groupby('ticker').shift(1)  
         self.data['ret'] = self.data['priceclose']/self.data['lpriceclose'] - 1
@@ -90,6 +91,10 @@ class CEFpanelreg:
         # select only rows that has valid weekly data
         self.data = self.data.loc[self.data.validweekly==True]     # use this only for weekly data
         
+        # daily return
+        self.data['lpriceclose'] = self.data[['ticker','priceclose']].groupby('ticker').shift(1)  
+        self.data['ret'] = self.data['priceclose']/self.data['lpriceclose'] - 1
+        
         # column reference
         self.c = len(self.data.columns)
         
@@ -120,7 +125,7 @@ class CEFpanelreg:
         
         # fit regression and return results
         self.result = self.__fitreg(self.data, start_datetime, end_datetime, y, var_pit, var_norm, fix, cluster, self.c)
-        
+
         # extract .nobs, .rsquared, .params, .tstats
         self.sumstat['R2'] = round(self.result.rsquared,4)
         self.sumstat['N'] = self.result.nobs
@@ -189,7 +194,7 @@ class CEFpanelreg:
         #self.data['valid'] = [d<limit for d in self.data['dif']]
         self.data.drop(['dif'], axis=1, inplace=True)
         
-    def __fitreg(self,
+    def fitreg(self,
                  dt,
                  start_datetime,
                  end_datetime,

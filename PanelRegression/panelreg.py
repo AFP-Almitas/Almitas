@@ -27,6 +27,12 @@ STEP2: Input parameters for regression
 """
 
 cef = CEFpanelreg(filename)
+
+collist = cef.data.columns.tolist()
+
+#import pandas as pd
+#pd.DataFrame(cef.data.columns).to_csv('variables.csv')
+
 cef.result(
         start_datetime = '2013-01-01',
         end_datetime = '2016-12-31',
@@ -124,7 +130,6 @@ plt.plot(date, portCumRetLongShort, label='Long-Short EW Portfolio')
 plt.ylabel('Cumulative Return')
 plt.title('Performance of Portfolios Constructed with Model on Weekly Frequency Data')
 plt.legend(loc='lower right')
-
 
 """
 
