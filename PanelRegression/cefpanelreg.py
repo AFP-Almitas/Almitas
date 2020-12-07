@@ -49,24 +49,54 @@ class CEFpanelreg:
         self.data['year'] = pd.DatetimeIndex(self.data['date']).year
         self.data['month'] = pd.DatetimeIndex(self.data['date']).month
         self.data['inceptiondate'] = pd.to_datetime(self.data['inceptiondate'])
+        self.data['terminationdate'] = pd.to_datetime(self.data['terminationdate'])
         self.data = self.data.drop_duplicates(subset=['ticker','date'],keep='last')
         
         # check valid lags, drop later before regression
         self.__CheckValidLag()
         
-        # change in discount (try 5 days)
-        self.data['lpd'] = self.data[['ticker','pd']].groupby('ticker').shift(5)
+
+        # compute return
+        self.data['lpriceclose'] = self.data[['ticker','priceclose']].groupby('ticker').shift(1)  
+        self.data['ret'] = self.data['priceclose']/self.data['lpriceclose'] - 1
+        
+        # change in discount
+        self.data['lpd'] = self.data[['ticker','pd']].groupby('ticker').shift(1)
         self.data['cd'] = self.data['pd'] - self.data['lpd']
         
         # age
         self.data['age'] = (self.data['date']-self.data['inceptiondate']).dt.days
+        self.data['age'] = np.log(self.data['age'])
+        
+        # time to maturity
+        self.data['tomaturity'] = (self.data['terminationdate']-self.data['date']).dt.days
+        self.data['tomaturity'] = np.log(self.data['tomaturity'])
+        
+        # change in pctSharesOwnedbyInstitutions
+        self.data['lpctsharesownedbyinstitutions'] = self.data[['ticker','pctsharesownedbyinstitutions']].groupby('ticker').shift(1)
+        self.data['pctinstitutionschg'] = self.data['pctsharesownedbyinstitutions'] - self.data['lpctsharesownedbyinstitutions']
+        
+        # no. of shares owned by retail (in millions)
+        self.data['retailshares'] = (1-self.data['pctsharesownedbyinstitutions']/100)*self.data['sharesoutstanding']/10**6
+        self.data['retailshares'] = self.data.groupby(['ticker'])['retailshares'].fillna(method='pad')
+        
+        # change in shares owned by retail
+        self.data['lretailshares'] = self.data[['ticker','retailshares']].groupby('ticker').shift(1)
+        self.data['retailshareschg'] = self.data['retailshares'] - self.data['lretailshares']
+        
+        # nav change
+        self.data['lnav'] = self.data[['ticker','nav']].groupby('ticker').shift(1)     
+        self.data['navchg'] = self.data['nav'] - self.data['lnav']
+        
+        # select only rows that has valid weekly data
+        self.data = self.data.loc[self.data.validweekly==True]     # use this only for weekly data
         
         # daily return
         self.data['lpriceclose'] = self.data[['ticker','priceclose']].groupby('ticker').shift(1)  
         self.data['ret'] = self.data['priceclose']/self.data['lpriceclose'] - 1
         
         # column reference
-        c = len(self.data.columns)
+        self.c = len(self.data.columns)
         
         # Point-in-time variables
         for var in var_pit:
@@ -94,15 +124,15 @@ class CEFpanelreg:
             func_dict[f](self.data,lag,length,variable)
         
         # fit regression and return results
-        result = self.fitreg(self.data, start_datetime, end_datetime, y, var_pit, var_norm, fix, cluster, c)
-        
+        self.result = self.__fitreg(self.data, start_datetime, end_datetime, y, var_pit, var_norm, fix, cluster, self.c)
+
         # extract .nobs, .rsquared, .params, .tstats
-        self.sumstat['R2'] = round(result.rsquared,4)
-        self.sumstat['N'] = result.nobs
-        self.sumstat['Coefficient'] = round(result.params,4)
-        self.sumstat['t-stat'] = round(result.tstats,4)
+        self.sumstat['R2'] = round(self.result.rsquared,4)
+        self.sumstat['N'] = self.result.nobs
+        self.sumstat['Coefficient'] = round(self.result.params,4)
+        self.sumstat['t-stat'] = round(self.result.tstats,4)
         
-        return result
+        return self.result
 
     def summary(self):
         
