@@ -6,6 +6,9 @@ Created on Sat Oct 10 18:56:49 2020
 @author: kanp
 """
 
+import pandas as pd
+import matplotlib.pyplot as plt
+import numpy as np
 from cefbacktest import CEFbacktest
 
 """
@@ -28,16 +31,16 @@ cef = CEFbacktest(filename)
 data = cef.data
 
 dt = cef.backtest(
-    start_datetime = '2017-01-01',
-    end_datetime = '2017-12-31',
-    assetclass1 = ['Equity','Fixed Income','Commodity'],
-    alpha = {'pit':[['cd',5],['pd',5],['navchg',5]],
-             'norm':[['cd',5,10,'mean'],['navchg',5,10,'mean']]},
-    method = ['mve',10,'2013-01-01','2016-12-31','vw',10],
+    start_datetime='2017-01-01',
+    end_datetime='2017-12-31',
+    assetclass1=['Equity', 'Fixed Income', 'Commodity'],
+    alpha={'pit': [['cd', 5], ['pd', 5], ['navchg', 5]],
+           'norm': [['cd', 5, 10, 'mean'], ['navchg', 5, 10, 'mean']]},
+    method=['mve', 10, '2013-01-01', '2016-12-31', 'vw', 10],
     #method = ['scoring',{'pit':[],'norm':[0.8,0.2]},'ew',10],
-    freq = ['weekly'],
-    transcost = 1,
-    compare = False)
+    freq=['weekly'],
+    transcost=1,
+    compare=False)
 
 cef.plottest()
 
@@ -49,26 +52,18 @@ data = cef.data
 
 
 dt = cef.backtest(
-    start_datetime = '2017-01-01',
-    end_datetime = '2018-12-31',
-    assetclass1 = ['Equity','Fixed Income','Commodity'],
-    alpha = {'pit':[['cd',22],['pd',22],['navchg',22]],
-             'norm':[['cd',22,10,'mean'],['navchg',5,10,'mean']]},
-    method = ['mve',10,'2013-01-01','2016-12-31','ew',10],
+    start_datetime='2017-01-01',
+    end_datetime='2018-12-31',
+    assetclass1=['Equity', 'Fixed Income', 'Commodity'],
+    alpha={'pit': [['cd', 22], ['pd', 22], ['navchg', 22]],
+           'norm': [['cd', 22, 10, 'mean'], ['navchg', 5, 10, 'mean']]},
+    method=['mve', 10, '2013-01-01', '2016-12-31', 'ew', 10],
     #method = ['scoring',{'pit':[],'norm':[0.8,0.2]},'ew',10],
-    freq = ['monthly',0],
-    transcost = 20,
-    compare = False)
+    freq=['monthly', 0],
+    transcost=20,
+    compare=False)
 
 cef.plottest()
-
-
-
-
-
-
-
-
 
 
 cef.data
@@ -91,19 +86,6 @@ d2 = cef.d2
 d2t = cef.d2t
 d2b = cef.d2b
 d3 = cef.d3
-
-
-import numpy as np
-import matplotlib.pyplot as plt
-import pandas as pd
-
-
-
-
-
-
-
-
 
 
 port = cef.port
