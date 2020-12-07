@@ -33,7 +33,7 @@ STEP2: Input parameters for regression
 - Cluster: Covariance clustering; choose from ['year','ticker']
 """
 
-# input 
+# input
 # start and end dates of training/validation set
 start_datetime = '1999-01-01'
 end_datetime = '2015-12-31'
@@ -42,25 +42,25 @@ folds = 5
 # parameters for panel reg
 y = ['cd5']
 var_pit = []
-var_norm = [['cd',5,5,'sum'], ['pd',1,5,'mean'], ['navchg',1,5,'sum']]
+var_norm = [['cd', 5, 5, 'sum'], ['pd', 1, 5, 'mean'], ['navchg', 1, 5, 'sum']]
 fix = ['assetclasslevel1']
-cluster = ['year','ticker']
+cluster = ['year', 'ticker']
 
 
 """
 STEP3: Import data, train model, predict and compute SSE for each cross-validation sets
-
 """
 
 # import data
-data = pd.read_csv(filename, index_col = 0)
+data = pd.read_csv(filename)
 data = data.reset_index()
 data['date'] = pd.to_datetime(data['date'])
 
 # filter dates to include period in 1999 - 2015
-regdata = data.loc[(data['date']>=start_datetime) & (data['date']<=end_datetime)]
+regdata = data.loc[(data['date'] >= start_datetime)
+                   & (data['date'] <= end_datetime)]
 regdata = regdata.sort_values('date')
-#asset = regdata[fix][:,1]).unique()
+# asset = regdata[fix][:,1]).unique()
 
 alldates = regdata['date'].unique()
 group_len = math.floor(len(alldates)/folds)
@@ -75,12 +75,13 @@ for i in range(folds):
         group_dates.append(alldates[(group_len*(i)):(group_len*(i+1))])
 
 reg_sets = []
-test_sets= []
+test_sets = []
 starts = []
 ends = []
 test_starts = []
 test_ends = []
 all_SE = []
+all_nobs = []
 all_results = pd.DataFrame()
 
 for i in range(folds):
@@ -91,48 +92,52 @@ for i in range(folds):
     test_starts.append(min(test_sets[i].date).strftime('%Y-%m-%d'))
     test_ends.append(max(test_sets[i].date).strftime('%Y-%m-%d'))
 
-    #cef.to_csv(r'reg_file.csv')
-    #test_sets[i].to_csv(r'test_file.csv')
+    # cef.to_csv(r'reg_file.csv')
+    # test_sets[i].to_csv(r'test_file.csv')
 
     #filename_train = 'reg_file.csv'
     #filename_test = 'test_file.csv'
 
     cef = CEFpanelreg(reg_sets[i])
     cef.result(
-            start_datetime = starts[i],
-            end_datetime = ends[i],
-            y = y,
-            var_pit = var_pit,
-            var_norm = var_norm,
-            fix = fix,
-            cluster = cluster
-            )
+        start_datetime=starts[i],
+        end_datetime=ends[i],
+        y=y,
+        var_pit=var_pit,
+        var_norm=var_norm,
+        fix=fix,
+        cluster=cluster
+    )
     cef_test = CEFpanelreg(test_sets[i])
     cef_test.result(
-            start_datetime = test_starts[i],
-            end_datetime = test_ends[i],
-            y = y,
-            var_pit = var_pit,
-            var_norm = var_norm,
-            fix = fix,
-            cluster = cluster
-            )
-    
+        start_datetime=test_starts[i],
+        end_datetime=test_ends[i],
+        y=y,
+        var_pit=var_pit,
+        var_norm=var_norm,
+        fix=fix,
+        cluster=cluster
+    )
+
     # backtest
-    train_asset = pd.Series(cef.assetclass.iloc[:,0]).sort_values().reset_index(drop=True)
+    train_asset = pd.Series(
+        cef.assetclass.iloc[:, 0]).sort_values().reset_index(drop=True)
     # drop first asset (the intercept)
     coef_asset = train_asset[1:].reset_index(drop=True)
 
     # filter dates
     start_datetime = test_starts[i]
     end_datetime = test_ends[i]
-    validation = cef_test.data.loc[(cef_test.data['date']>=start_datetime) & (cef_test.data['date']<=end_datetime)]
+    validation = cef_test.data.loc[(cef_test.data['date'] >= start_datetime) & (
+        cef_test.data['date'] <= end_datetime)]
 
     # filter columns
-    validation = validation[y + ['year','ticker'] + [col for col in validation.columns[cef.c:]] + fix + ['date', 'ret']]
+    validation = validation[y + ['year', 'ticker'] +
+                            [col for col in validation.columns[cef.c:]] + fix + ['date', 'ret']]
     validation = validation.dropna()
-    validation = validation.set_index(['ticker','year'])
-    asset = pd.Series(validation[fix].iloc[:,0].unique()).sort_values().reset_index(drop=True)
+    validation = validation.set_index(['ticker', 'year'])
+    asset = pd.Series(validation[fix].iloc[:, 0].unique()
+                      ).sort_values().reset_index(drop=True)
 
     # extract coefficients from fitted model
     fit = cef.result
@@ -140,31 +145,31 @@ for i in range(folds):
 
     # check if asset classes in validation set is also in the training data set
     check = np.zeros((len(asset)))
-    for j in range(0, len(asset)) :
+    for j in range(0, len(asset)):
         check[j] = any(train_asset.str.contains(asset[j]))
 
     # construct matrix of independent variables
     # start with array of ones for the intercept
-    intercept = np.mat(np.repeat(1,len(validation)))
+    intercept = np.mat(np.repeat(1, len(validation)))
 
     # manually create columns of 1 for each asset class
     fix_asfactors = pd.DataFrame(np.zeros((len(validation), len(coef_asset))))
     assetclasscol = validation[fix].reset_index(drop=True)
     fix_asfactors = pd.concat([fix_asfactors, assetclasscol], axis=1)
 
-    for j in range(0, len(coef_asset)) : 
-        index = fix_asfactors[fix]==coef_asset[j]
-        index = index.iloc[:,0] 
-        fix_asfactors.loc[index,j] = 1
+    for j in range(0, len(coef_asset)):
+        index = fix_asfactors[fix] == coef_asset[j]
+        index = index.iloc[:, 0]
+        fix_asfactors.loc[index, j] = 1
 
     # drop assetclasslevel3 column as it is no longer used
     fix_asfactors = fix_asfactors.drop(columns=fix)
 
     # select columns of independent variables
-    indeptvar = validation.iloc[:,1:-3]
+    indeptvar = validation.iloc[:, 1:-3]
 
     # construct the matrix of variables
-    x = np.append(intercept.T,fix_asfactors, axis=1)
+    x = np.append(intercept.T, fix_asfactors, axis=1)
     x = np.append(x, indeptvar, axis=1)
 
     # predict cd based on coefficients from model fitted on training data set
@@ -173,31 +178,47 @@ for i in range(folds):
     # merge prediction with validation data set
     validation = validation.reset_index()
     validation = pd.concat([validation, pred], axis=1)
-    validation= validation.rename({0: 'cdpred'}, axis='columns')
-    
+    validation = validation.rename({0: 'cdpred'}, axis='columns')
+
     # calculate sum of squared errors
-    validation['diff'] = validation[y].iloc[:,0] - validation['cdpred']
+    validation['diff'] = validation[y].iloc[:, 0] - validation['cdpred']
     validation['diff_sqr'] = validation['diff']**2
 
     SE = validation['diff_sqr'].sum()
     all_SE.append(SE)
-    
+
     # store results (SSE, r2, nobs and coef)
-    res = pd.Series(np.append([SE, fit.rsquared, fit.nobs, test_starts[i], test_ends[i]], coef))
-    rownames = pd.Series(np.append(['SSE', 'r2', 'nobs', 'test set start date', 'test set ends date'], fit._var_names))
-    if i==0 :        
+    res = pd.Series(
+        np.append([SE, fit.rsquared, fit.nobs, test_starts[i], test_ends[i]], coef))
+    rownames = pd.Series(np.append(
+        ['SSE', 'r2', 'nobs', 'test set start date', 'test set ends date'], fit._var_names))
+    if i == 0:
         all_results = pd.concat([rownames, res], axis=1)
         all_results.columns = ['row', 'val']
-    else :
+    else:
         results = pd.concat([rownames, res], axis=1)
         results.columns = ['row', 'val']
-        
+
         all_results = all_results.merge(results, how='left', on='row')
-    
+
+    all_nobs.append(fit.nobs)
+
 
 all_results = all_results.set_index(['row'])
-all_results.columns= list(range(1,folds+1))
+all_results.columns = list(range(1, folds+1))
+
+# total SSE/nobs vs range of CD
+total_sse = sum(all_SE)
+total_nobs = sum(all_nobs)
+sse_n = total_sse/total_nobs
+
 
 print(all_SE)
 print(sum(all_SE))
+print(total_nobs)
+print(sse_n)
 print(all_results)
+
+
+# confusion matrix
+# panelOLS.predict
