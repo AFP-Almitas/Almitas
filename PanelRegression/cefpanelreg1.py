@@ -14,6 +14,7 @@ from datetime import datetime, date, timedelta
 from linearmodels.panel import PanelOLS
 from linearmodels.panel import compare
 import sys
+import scipy.stats as stats
 sys.tracebacklimit = 0
 np.warnings.filterwarnings('ignore')
 
@@ -243,6 +244,16 @@ class CEFpanelreg:
         dt = dt.set_index(['ticker', 'year'])
 
         self.assetclass = dt[fix].drop_duplicates().reset_index(drop=True)
+        
+        # winsorise before running regression
+        for col in dt.columns[:-1] :
+            # get the upper and lower bound as quantile of +/- 3 sigma of standard normal
+            lb = dt[col].quantile(stats.norm.cdf(-3))
+            ub = dt[col].quantile(stats.norm.cdf(3))
+            
+            # winsorise for outlier data points
+            dt.loc[dt[col]<lb,col] = lb
+            dt.loc[dt[col]>ub,col] = ub
 
         print(dt.info())
 
