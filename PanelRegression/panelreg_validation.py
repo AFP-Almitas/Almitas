@@ -81,8 +81,15 @@ ends = []
 test_starts = []
 test_ends = []
 all_SE = []
+all_mse = []
+all_train_asset = []
 all_nobs = []
 all_results = pd.DataFrame()
+
+# store data for shrinkage test
+all_validation = []
+all_x = []
+all_coef = []
 
 for i in range(folds):
     reg_sets.append(regdata.loc[~regdata.date.isin(group_dates[i])])
@@ -136,8 +143,7 @@ for i in range(folds):
                             [col for col in validation.columns[cef.c:]] + fix + ['date', 'ret']]
     validation = validation.dropna()
     validation = validation.set_index(['ticker', 'year'])
-    asset = pd.Series(validation[fix].iloc[:, 0].unique()
-                      ).sort_values().reset_index(drop=True)
+    asset = pd.Series(validation[fix].iloc[:, 0].unique()).sort_values().reset_index(drop=True)
 
     # extract coefficients from fitted model
     fit = cef.result
@@ -186,12 +192,15 @@ for i in range(folds):
 
     SE = validation['diff_sqr'].sum()
     all_SE.append(SE)
+    
+    MSE = validation['diff_sqr'].mean()
+    all_mse.append(MSE)
 
     # store results (SSE, r2, nobs and coef)
     res = pd.Series(
-        np.append([SE, fit.rsquared, fit.nobs, test_starts[i], test_ends[i]], coef))
+        np.append([SE, MSE, fit.rsquared, fit.nobs, test_starts[i], test_ends[i]], coef))
     rownames = pd.Series(np.append(
-        ['SSE', 'r2', 'nobs', 'test set start date', 'test set ends date'], fit._var_names))
+        ['SSE', 'MSE', 'r2', 'nobs', 'test set start date', 'test set ends date'], fit._var_names))
     if i == 0:
         all_results = pd.concat([rownames, res], axis=1)
         all_results.columns = ['row', 'val']
@@ -202,6 +211,17 @@ for i in range(folds):
         all_results = all_results.merge(results, how='left', on='row')
 
     all_nobs.append(fit.nobs)
+    
+    # store data
+    all_validation.append(validation)
+    all_x.append(x)
+    all_coef.append(coef)
+    
+    # store standard errors of the independent variables betas 
+    if i==0 :
+        sigma = pd.DataFrame(fit.std_errors[-len(indeptvar.columns):])
+    else :
+        sigma = pd.concat([sigma, fit.std_errors[-len(indeptvar.columns):]], axis=1)
 
 
 all_results = all_results.set_index(['row'])
@@ -215,9 +235,128 @@ sse_n = total_sse/total_nobs
 
 print(all_SE)
 print(sum(all_SE))
-print(total_nobs)
-print(sse_n)
+print(sum(all_mse))
+print(np.std(all_mse))
 print(all_results)
+
+# shrinkage estimator for the coefficients on independent variables
+# try use grand mean as shrinkage target
+# compute omega squared as average of all std. errors from all folds
+omega_sq = (sigma**2).mean(axis=1)
+
+# compute grand mean of coefficients
+for i in range(folds) :
+    if i==0 :
+        beta = pd.DataFrame(all_coef[i][-len(indeptvar.columns):])
+    else :
+        beta = pd.concat([beta, pd.Series(all_coef[i][-len(indeptvar.columns):])], axis=1)
+
+beta['mean'] = beta.mean(axis=1)
+
+# compute omega squared + delta squared as deviations of beta from grand mean
+for i in range(folds) :
+    if i==0 :
+        beta['total_deviation'] = (beta.iloc[:,i] - beta['mean'])**2
+    else : 
+        beta['total_deviation'] = beta['total_deviation'] + (beta.iloc[:,i] - beta['mean'])**2
+
+beta['total_deviation'] = beta['total_deviation']/folds
+
+# compute shrinkage intensity
+shrinkage_intensity = 1 - omega_sq.reset_index(drop=True) / beta['total_deviation']
+
+# truncate at 0 for negative intensity
+shrinkage_intensity[shrinkage_intensity<0] = 0
+
+# compute shrinkage estimator, new prediction, MSE, SSE, etc.
+all_new_SE = []
+all_new_mse = []
+
+for i in range(folds) :
+    # shrinkage estimator
+    beta['new'+str(i+1)] = beta.iloc[:,i]*shrinkage_intensity + beta['mean']*(1-shrinkage_intensity)
+    
+    # replace coef
+    new_coef = all_coef[i]
+    new_coef[-len(indeptvar.columns):] = beta['new'+str(i+1)]
+    
+    # predict
+    new_pred = pd.DataFrame(np.matmul(all_x[i], new_coef).T)
+
+    # merge prediction with validation data set
+    new_validation = all_validation[i]
+    new_validation = pd.concat([new_validation, new_pred], axis=1)
+    new_validation= new_validation.rename({0: 'new_cdpred'}, axis='columns')
+    
+    # calculate sum of squared errors
+    new_validation['new_diff'] = new_validation[y].iloc[:,0] - new_validation['new_cdpred']
+    new_validation['new_diff_sqr'] = new_validation['new_diff']**2
+
+    SE = new_validation['new_diff_sqr'].sum()
+    all_new_SE.append(SE)
+
+    MSE = new_validation['new_diff_sqr'].mean()
+    all_new_mse.append(MSE)
+
+
+# try use 0 as shrinkage target
+# compute omega squared as average of all std. errors from all folds
+omega_sq = (sigma**2).mean(axis=1)
+
+# compute omega squared + delta squared as deviations of beta from shrinkage target (0)
+for i in range(folds) :
+    if i==0 :
+        beta['total_deviation_2'] = (beta.iloc[:,i] - 0)**2
+    else : 
+        beta['total_deviation_2'] = beta['total_deviation'] + (beta.iloc[:,i] - 0)**2
+
+beta['total_deviation_2'] = beta['total_deviation_2']/folds
+
+# compute shrinkage intensity
+shrinkage_intensity_2 = 1 - omega_sq.reset_index(drop=True) / beta['total_deviation_2']
+
+# truncate at 0 for negative intensity
+shrinkage_intensity_2[shrinkage_intensity_2<0] = 0 # same shrinkage intensity so results will be the same..
+
+# compute shrinkage estimator, new prediction, MSE, SSE, etc.
+all_new_SE_2 = []
+all_new_mse_2 = []
+
+for i in range(folds) :
+    # shrinkage estimator
+    beta['new_2'+str(i+1)] = beta.iloc[:,i]*shrinkage_intensity_2 + 0*(1-shrinkage_intensity_2)
+    
+    # replace coef
+    new_coef_2 = all_coef[i]
+    new_coef_2[-len(indeptvar.columns):] = beta['new_2'+str(i+1)]
+    
+    # predict
+    new_pred_2 = pd.DataFrame(np.matmul(all_x[i], new_coef_2).T)
+
+    # merge prediction with validation data set
+    new_validation = all_validation[i]
+    new_validation = pd.concat([new_validation, new_pred_2], axis=1)
+    new_validation = new_validation.rename({0: 'new_cdpred_2'}, axis='columns')
+    
+    # calculate sum of squared errors
+    new_validation['new_diff_2'] = new_validation[y].iloc[:,0] - new_validation['new_cdpred_2']
+    new_validation['new_diff_sqr_2'] = new_validation['new_diff_2']**2
+
+    SE = new_validation['new_diff_sqr_2'].sum()
+    all_new_SE_2.append(SE)
+
+    MSE = new_validation['new_diff_sqr_2'].mean()
+    all_new_mse_2.append(MSE)
+
+print(sum(all_SE))
+print(sum(all_new_SE))
+print(sum(all_new_SE_2))
+
+print(np.std(all_mse))
+print(np.std(all_new_mse))
+print(np.std(all_new_mse_2))
+
+
 
 
 # confusion matrix
