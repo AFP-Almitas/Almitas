@@ -819,3 +819,5 @@ FN = sum(conf_mat['result'] == 'fn')
 print([[TP, FP], [FN, TN]])
 
 # plotting the residuals
+# how to plot them?
+the_validation['res'] = the_validation[y] - the_validation['cdpred']
