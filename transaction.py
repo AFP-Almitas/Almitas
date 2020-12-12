@@ -55,7 +55,7 @@ coef_asset = train_asset[1:].reset_index(drop=True)
     
 # filter dates
 start_datetime = '2015-12-20'
-end_datetime = '2020-04-08'
+end_datetime = '2019-12-31'
 validation = cef.data.loc[(cef.data['date']>=start_datetime) & (cef.data['date']<=end_datetime)]
 
 # filter columns
@@ -147,7 +147,7 @@ treasury_period = treasury_period.reset_index()
 
 # daily data for calculating average daily volume
 start_datetime2 = '2015-07-01'
-end_datetime2 = '2020-04-08'
+end_datetime2 = '2019-12-31'
 daily_CEF = daily_file.loc[(daily_file['date']>=start_datetime2) & (daily_file['date']<=end_datetime2)]
 daily_CEF = daily_CEF.reset_index()
 daily_CEF['date'] = [datetime.strptime(dd,'%Y-%m-%d') for dd in daily_CEF['date']]
@@ -182,6 +182,9 @@ file['outstanding'] = file['marketcap.x']/file['priceclose']
 
 cap = [] 
 cap.append(begin_cap)
+
+shares = pd.DataFrame()
+
 for t in range(0, len(date)) : 
     # sort CEFs into decile in each week, based on cdpred
     dt = validation2.loc[validation2['date']==date[t]]
@@ -217,9 +220,25 @@ for t in range(0, len(date)) :
     
     top['money_invested'] = top['shares_traded']*top['priceclose']
     
-    total_shr = sum(top['shares_traded'])
+
     top['money_ret'] = top['money_invested'] * (1+top['ret'])
     
+    shares_td = top[['ticker','date','shares_traded']]
+    
+    if t == 0:
+        shares_ytd = shares_td
+        shares_ytd['shares_traded'] = np.repeat(0, len(shares_td['shares_traded']))
+
+    compare_shares = shares_td.merge(shares_ytd, on = ['ticker'], how = 'outer').fillna(0)
+    compare_shares['buy'] = np.maximum(compare_shares['shares_traded_x'] - compare_shares['shares_traded_y'],
+                                       np.repeat(0, len(compare_shares['shares_traded_x'])))
+    compare_shares['sell'] = np.maximum(compare_shares['shares_traded_y'] - compare_shares['shares_traded_x'],
+                                       np.repeat(0, len(compare_shares['shares_traded_x'])))
+    #shares = shares.append(top[['ticker','date','shares_traded']])
+    
+    total_shr_buy = sum(compare_shares['buy'])
+    total_shr_sell = sum(compare_shares['sell'])
+    total_shr = total_shr_buy + total_shr_sell
     money_in_CEF = sum(top['money_invested'])
     money_in_treasury = cap[t] - money_in_CEF 
     
@@ -232,8 +251,7 @@ for t in range(0, len(date)) :
     ret_w_cost = tot_ret - tracost
     
     cap.append(ret_w_cost)
-
-print(date)
+    shares_ytd = shares_td 
 
 cap = np.array(cap)
 cap_shift = np.roll(cap, 1)
