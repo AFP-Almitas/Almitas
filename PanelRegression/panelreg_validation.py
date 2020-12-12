@@ -261,8 +261,8 @@ print(np.mean(Accuracy))
 
 # shrinkage estimator for the coefficients on independent variables
 # try use grand mean as shrinkage target
-# compute omega squared as average of all std. errors from all folds
-omega_sq = (sigma**2).mean(axis=1)
+# compute omega squared from std. errors of all folds
+omega_sq = sigma**2
 
 # compute grand mean of coefficients
 for i in range(folds):
@@ -285,8 +285,8 @@ for i in range(folds):
 beta['total_deviation'] = beta['total_deviation']/folds
 
 # compute shrinkage intensity
-shrinkage_intensity = 1 - \
-    omega_sq.reset_index(drop=True) / beta['total_deviation']
+shrinkage_intensity = omega_sq.apply(lambda x: 1-x/list(beta['total_deviation']), axis=0)
+shrinkage_intensity = shrinkage_intensity.reset_index(drop=True)
 
 # truncate at 0 for negative intensity
 shrinkage_intensity[shrinkage_intensity < 0] = 0
@@ -327,7 +327,7 @@ for i in range(folds):
     all_new_mse.append(MSE)
     
     # construct confusion matrix
-    conf_mat = validation[y+['cdpred']]
+    conf_mat = new_validation[y+['cdpred']]
     
     conf_mat.loc[(conf_mat.iloc[:,0] >= 0) & (conf_mat.iloc[:,1] >= 0), 'result'] = 'tp'
     conf_mat.loc[(conf_mat.iloc[:,0] < 0) & (conf_mat.iloc[:,1] < 0), 'result'] = 'tn'
