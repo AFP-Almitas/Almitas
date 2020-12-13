@@ -282,9 +282,29 @@ mean_ret = np.mean(excess_ret)
 Sharpe = (mean_ret/ret_vol)*(52**0.5)
 print(Sharpe)
 
+# compute benchmark returns
+# merge with S&P and Bond data
+rawdata = pd.read_excel(r'S&Pdata.xlsx', skiprows=6, sheet_name=[0,1])
+# merge Barclays Bond index and S&P500 data
+benchmark = rawdata[0].iloc[:,0:3].merge(rawdata[1].iloc[:,0:3], on='Name')
+benchmark.columns = ['Date', 'Bond Price', 'Bond MV', 'S&P Price', 'S&P MV']
+# subset data on relevant dates
+benchmark = benchmark.loc[benchmark['Date'].isin(date)]
+benchmark = benchmark.reset_index()
+# compute returns 
+benchmark['lag Bond Price'] = benchmark['Bond Price'].shift(1)
+benchmark['Bond ret'] = benchmark['Bond Price']/benchmark['lag Bond Price'] - 1
+benchmark['lag S&P Price'] = benchmark['S&P Price'].shift(1)
+benchmark['S&P ret'] = benchmark['S&P Price']/benchmark['lag S&P Price'] - 1
+benchmark['60/40 ret'] = 0.6*benchmark['S&P ret'] + 0.4*benchmark['Bond ret']
+
+benchmark['60/40 cumret'] = np.cumprod(1+benchmark['60/40 ret']) - 1
+
+
 date2 = np.delete(date,0)
 plt.figure(figsize=(10, 6))
-plt.plot(date2, cum_ex_ret, label='Long-Only EW Portfolio')
+plt.plot(date2, cum_ret, label='Long-Only EW Portfolio')
+plt.plot(date2, benchmark.loc[1:,'60/40 cumret'], label='60-40 Portfolio')
 plt.ylabel('Cumulative Return')
 plt.title('Performance of Portfolios Constructed with Model on Weekly Frequency Data')
 plt.legend(loc='lower right')
