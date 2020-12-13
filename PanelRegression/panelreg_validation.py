@@ -94,6 +94,7 @@ all_mse = []
 all_train_asset = []
 all_nobs = []
 all_results = pd.DataFrame()
+all_conf_mat = []   
 
 # store data for shrinkage test
 all_validation = []
@@ -217,6 +218,8 @@ for i in range(folds):
     print([TP, FP]) 
     print([FN, TN])
     
+    all_conf_mat.append([TP, TN, FP, FN])
+    
     TPR = TP/(TP+FN)
     Precision = TP/(TP+FP)
     Accuracy = (TP+TN)/(TP+TN+FP+FN)
@@ -251,45 +254,51 @@ for i in range(folds):
 all_results = all_results.set_index(['row'])
 all_results.columns = list(range(1, folds+1))
 
-print(all_SE)
-print(sum(all_SE))
-print(sum(all_mse))
-print(np.std(all_mse))
-print(np.mean(TPR))
-print(np.mean(Precision))
-print(np.mean(Accuracy))
+all_TP = [res[0] for res in all_conf_mat]
+all_TN = [res[1] for res in all_conf_mat]
+all_FP = [res[2] for res in all_conf_mat]
+all_FN = [res[3] for res in all_conf_mat]
+
+all_TPR = sum(all_TP)/sum(all_TP + all_FN)
+all_precision = sum(all_TP)/sum(all_TP + all_FP)
+all_accuracy = sum(all_TP + all_TN)/sum(all_TP + all_FP + all_TN + all_FN)
+
+print(all_TPR)
+print(all_precision)
+print(all_accuracy)
+
 
 # shrinkage estimator for the coefficients on independent variables
 # try use grand mean as shrinkage target
-# compute omega squared from std. errors of all folds
+# compute omega squared as average of all std. errors from all folds
+#omega_sq = (sigma**2).mean(axis=1)
 omega_sq = sigma**2
 
 # compute grand mean of coefficients
-for i in range(folds):
-    if i == 0:
+for i in range(folds) :
+    if i==0 :
         beta = pd.DataFrame(all_coef[i][-len(indeptvar.columns):])
-    else:
-        beta = pd.concat(
-            [beta, pd.Series(all_coef[i][-len(indeptvar.columns):])], axis=1)
+    else :
+        beta = pd.concat([beta, pd.Series(all_coef[i][-len(indeptvar.columns):])], axis=1)
 
 beta['mean'] = beta.mean(axis=1)
 
 # compute omega squared + delta squared as deviations of beta from grand mean
-for i in range(folds):
-    if i == 0:
-        beta['total_deviation'] = (beta.iloc[:, i] - beta['mean'])**2
-    else:
-        beta['total_deviation'] = beta['total_deviation'] + \
-            (beta.iloc[:, i] - beta['mean'])**2
+for i in range(folds) :
+    if i==0 :
+        beta['total_deviation'] = (beta.iloc[:,i] - beta['mean'])**2
+    else : 
+        beta['total_deviation'] = beta['total_deviation'] + (beta.iloc[:,i] - beta['mean'])**2
 
 beta['total_deviation'] = beta['total_deviation']/folds
 
 # compute shrinkage intensity
+#shrinkage_intensity = 1 - omega_sq.reset_index(drop=True) / beta['total_deviation']
 shrinkage_intensity = omega_sq.apply(lambda x: 1-x/list(beta['total_deviation']), axis=0)
 shrinkage_intensity = shrinkage_intensity.reset_index(drop=True)
 
 # truncate at 0 for negative intensity
-shrinkage_intensity[shrinkage_intensity < 0] = 0
+shrinkage_intensity[shrinkage_intensity<0] = 0
 
 # compute shrinkage estimator, new prediction, MSE, SSE, etc.
 all_new_SE = []
@@ -297,27 +306,26 @@ all_new_mse = []
 all_new_TPR = []
 all_new_precision = []
 all_new_accuracy = []
+all_new_conf_mat = []
 
-for i in range(folds):
+for i in range(folds) :
     # shrinkage estimator
-    beta['new'+str(i+1)] = beta.iloc[:, i]*shrinkage_intensity + \
-        beta['mean']*(1-shrinkage_intensity)
-
+    beta['new'+str(i+1)] = beta.iloc[:,i]*shrinkage_intensity.iloc[:,i] + beta['mean']*(1-shrinkage_intensity.iloc[:,i])
+    
     # replace coef
     new_coef = all_coef[i]
     new_coef[-len(indeptvar.columns):] = beta['new'+str(i+1)]
-
+    
     # predict
     new_pred = pd.DataFrame(np.matmul(all_x[i], new_coef).T)
 
     # merge prediction with validation data set
     new_validation = all_validation[i]
     new_validation = pd.concat([new_validation, new_pred], axis=1)
-    new_validation = new_validation.rename({0: 'new_cdpred'}, axis='columns')
-
+    new_validation= new_validation.rename({0: 'new_cdpred'}, axis='columns')
+    
     # calculate sum of squared errors
-    new_validation['new_diff'] = new_validation[y].iloc[:, 0] - \
-        new_validation['new_cdpred']
+    new_validation['new_diff'] = new_validation[y].iloc[:,0] - new_validation['new_cdpred']
     new_validation['new_diff_sqr'] = new_validation['new_diff']**2
 
     SE = new_validation['new_diff_sqr'].sum()
@@ -342,6 +350,8 @@ for i in range(folds):
     print([TP, FP]) 
     print([FN, TN])
     
+    all_new_conf_mat.append([TP, TN, FP, FN])
+    
     TPR = TP/(TP+FN)
     Precision = TP/(TP+FP)
     Accuracy = (TP+TN)/(TP+TN+FP+FN)
@@ -349,47 +359,59 @@ for i in range(folds):
     all_new_TPR.append(TPR)
     all_new_precision.append(Precision)
     all_new_accuracy.append(Accuracy)
+    
 
-print(np.mean(TPR))
-print(np.mean(Precision))
-print(np.mean(Accuracy))
+all_TP = [res[0] for res in all_new_conf_mat]
+all_TN = [res[1] for res in all_new_conf_mat]
+all_FP = [res[2] for res in all_new_conf_mat]
+all_FN = [res[3] for res in all_new_conf_mat]
+
+all_TPR = sum(all_TP)/sum(all_TP + all_FN)
+all_precision = sum(all_TP)/sum(all_TP + all_FP)
+all_accuracy = sum(all_TP + all_TN)/sum(all_TP + all_FP + all_TN + all_FN)
+
+print(all_TPR)
+print(all_precision)
+print(all_accuracy)
+
 
 
 # try use 0 as shrinkage target
 # compute omega squared as average of all std. errors from all folds
-omega_sq = (sigma**2).mean(axis=1)
+omega_sq = sigma**2
 
 # compute omega squared + delta squared as deviations of beta from shrinkage target (0)
-for i in range(folds):
-    if i == 0:
-        beta['total_deviation_2'] = (beta.iloc[:, i] - 0)**2
-    else:
-        beta['total_deviation_2'] = beta['total_deviation'] + \
-            (beta.iloc[:, i] - 0)**2
+for i in range(folds) :
+    if i==0 :
+        beta['total_deviation_2'] = (beta.iloc[:,i] - 0)**2
+    else : 
+        beta['total_deviation_2'] = beta['total_deviation'] + (beta.iloc[:,i] - 0)**2
 
 beta['total_deviation_2'] = beta['total_deviation_2']/folds
 
 # compute shrinkage intensity
-shrinkage_intensity_2 = 1 - \
-    omega_sq.reset_index(drop=True) / beta['total_deviation_2']
+shrinkage_intensity_2 = omega_sq.apply(lambda x: 1-x/list(beta['total_deviation_2']), axis=0)
+shrinkage_intensity_2 = shrinkage_intensity_2.reset_index(drop=True)
 
 # truncate at 0 for negative intensity
-# same shrinkage intensity so results will be the same..
-shrinkage_intensity_2[shrinkage_intensity_2 < 0] = 0
+shrinkage_intensity_2[shrinkage_intensity_2<0] = 0 
 
 # compute shrinkage estimator, new prediction, MSE, SSE, etc.
 all_new_SE_2 = []
 all_new_mse_2 = []
+all_new_TPR_2 = []
+all_new_precision_2 = []
+all_new_accuracy_2 = []
+all_new_conf_mat_2 = []
 
-for i in range(folds):
+for i in range(folds) :
     # shrinkage estimator
-    beta['new_2'+str(i+1)] = beta.iloc[:, i] * \
-        shrinkage_intensity_2 + 0*(1-shrinkage_intensity_2)
-
+    beta['new_2'+str(i+1)] = beta.iloc[:,i]*shrinkage_intensity_2.iloc[:,i] + 0*(1-shrinkage_intensity_2.iloc[:,i])
+    
     # replace coef
     new_coef_2 = all_coef[i]
     new_coef_2[-len(indeptvar.columns):] = beta['new_2'+str(i+1)]
-
+    
     # predict
     new_pred_2 = pd.DataFrame(np.matmul(all_x[i], new_coef_2).T)
 
@@ -397,10 +419,9 @@ for i in range(folds):
     new_validation = all_validation[i]
     new_validation = pd.concat([new_validation, new_pred_2], axis=1)
     new_validation = new_validation.rename({0: 'new_cdpred_2'}, axis='columns')
-
+    
     # calculate sum of squared errors
-    new_validation['new_diff_2'] = new_validation[y].iloc[:,
-                                                          0] - new_validation['new_cdpred_2']
+    new_validation['new_diff_2'] = new_validation[y].iloc[:,0] - new_validation['new_cdpred_2']
     new_validation['new_diff_sqr_2'] = new_validation['new_diff_2']**2
 
     SE = new_validation['new_diff_sqr_2'].sum()
@@ -408,6 +429,33 @@ for i in range(folds):
 
     MSE = new_validation['new_diff_sqr_2'].mean()
     all_new_mse_2.append(MSE)
+    
+    # construct confusion matrix
+    conf_mat = new_validation[y+['cdpred']]
+    
+    conf_mat.loc[(conf_mat.iloc[:,0] >= 0) & (conf_mat.iloc[:,1] >= 0), 'result'] = 'tp'
+    conf_mat.loc[(conf_mat.iloc[:,0] < 0) & (conf_mat.iloc[:,1] < 0), 'result'] = 'tn'
+    conf_mat.loc[(conf_mat.iloc[:,0] >= 0) & (conf_mat.iloc[:,1] < 0), 'result'] = 'fn'
+    conf_mat.loc[(conf_mat.iloc[:,0] < 0) & (conf_mat.iloc[:,1] >= 0), 'result'] = 'fp'
+
+    TP = sum(conf_mat['result'] == 'tp')
+    TN = sum(conf_mat['result'] == 'tn')
+    FP = sum(conf_mat['result'] == 'fp')
+    FN = sum(conf_mat['result'] == 'fn')
+    
+    print([TP, FP]) 
+    print([FN, TN])
+    
+    all_new_conf_mat_2.append([TP, TN, FP, FN])
+    
+    TPR = TP/(TP+FN)
+    Precision = TP/(TP+FP)
+    Accuracy = (TP+TN)/(TP+TN+FP+FN)
+    
+    all_new_TPR_2.append(TPR)
+    all_new_precision_2.append(Precision)
+    all_new_accuracy_2.append(Accuracy)
+    
 
 print(sum(all_SE))
 print(sum(all_new_SE))
@@ -416,6 +464,19 @@ print(sum(all_new_SE_2))
 print(np.std(all_mse))
 print(np.std(all_new_mse))
 print(np.std(all_new_mse_2))
+
+all_TP = [res[0] for res in all_new_conf_mat_2]
+all_TN = [res[1] for res in all_new_conf_mat_2]
+all_FP = [res[2] for res in all_new_conf_mat_2]
+all_FN = [res[3] for res in all_new_conf_mat_2]
+
+all_TPR = sum(all_TP)/sum(all_TP + all_FN)
+all_precision = sum(all_TP)/sum(all_TP + all_FP)
+all_accuracy = sum(all_TP + all_TN)/sum(all_TP + all_FP + all_TN + all_FN)
+
+print(all_TPR)
+print(all_precision)
+print(all_accuracy)
 
 
 
