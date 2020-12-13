@@ -130,7 +130,6 @@ validation2 = validation.loc[validation['day'] == 'Tuesday']
 validation2['ret'] = validation2.groupby('ticker').priceclose.pct_change().fillna(0)
 validation2 = validation2.loc[validation.date >= datetime(2016, 1, 1)]
 
-
 # form portfolios and compute weekly returns
 date = validation2['date'].unique()
 port = pd.DataFrame(np.zeros((len(date), 2)), columns=['longonly', 'longshort'])
@@ -147,11 +146,11 @@ treasury_period = treasury_period.reset_index()
 
 # daily data for calculating average daily volume
 start_datetime2 = '2015-07-01'
-end_datetime2 = '2019-12-31'
+end_datetime2 = '2020-12-31'
 daily_CEF = daily_file.loc[(daily_file['date']>=start_datetime2) & (daily_file['date']<=end_datetime2)]
 daily_CEF = daily_CEF.reset_index()
 daily_CEF['date'] = [datetime.strptime(dd,'%Y-%m-%d') for dd in daily_CEF['date']]
-daily_CEF['ticker'] = [tk.split()[0] for tk in daily_CEF['ticker']]
+#daily_CEF['ticker'] = [tk.split()[0] for tk in daily_CEF['ticker']]
 
 
 daily_avg_vol_df = pd.DataFrame()
@@ -171,8 +170,15 @@ for i in range(0, len(date)):
     avg_vol_df.columns = ['ticker', 'avg_daily_vol', 'date']
     
     daily_avg_vol_df = daily_avg_vol_df.append(avg_vol_df)
+'''
+daily_avg_vol= daily_avg_vol_df[['ticker', 'avg_daily_vol', 'date']]
+daily_avg_vol_df = daily_avg_vol_df.reset_index()
+daily_avg_vol_df['']
+'''
+validation2['next_ret'] = validation2.groupby('ticker').ret.shift(-1).fillna(0)
+validation2['next_cdpred'] = validation2.groupby('ticker').cdpred.shift(-1).fillna(0)
 
-    
+  
 validation2 = validation2.merge(daily_avg_vol_df, on = ['ticker', 'date'], how = 'left')
 
 begin_cap = 1000000
@@ -185,8 +191,9 @@ cap.append(begin_cap)
 
 shares = pd.DataFrame()
 
-for t in range(0, len(date)) : 
+for t in range(0, len(date)-1) : 
     # sort CEFs into decile in each week, based on cdpred
+    print(t)
     dt = validation2.loc[validation2['date']==date[t]]
 
     file['date'] = pd.to_datetime(file['date'])
@@ -195,11 +202,11 @@ for t in range(0, len(date)) :
     
     # form long only EW portfolio from the top decile
     
-    dt2['decile'] = pd.qcut(dt2['cdpred'], 10, labels=False)
+    dt2['decile'] = pd.qcut(dt2['next_cdpred'], 10, labels=False)
     
     top = dt2.loc[dt2.decile==9]
     bot = dt2.loc[dt2.decile==0]
-    port.loc[t, 'longonly'] = np.mean(dt2.loc[dt2.decile==9]['ret'])
+    #port.loc[t, 'longonly'] = np.mean(dt2.loc[dt2.decile==9]['ret'])
     
     # form long-short EW portfolio from the top and bottom decile
     #port.loc[t, 'longshort'] = np.mean(dt2.loc[dt2.decile==9]['ret']) - 
@@ -221,7 +228,7 @@ for t in range(0, len(date)) :
     top['money_invested'] = top['shares_traded']*top['priceclose']
     
 
-    top['money_ret'] = top['money_invested'] * (1+top['ret'])
+    top['money_ret'] = top['money_invested'] * (1+top['next_ret'])
     
     shares_td = top[['ticker','date','shares_traded']]
     
@@ -258,12 +265,11 @@ cap_shift = np.roll(cap, 1)
 
 week_ret = cap/cap_shift - 1
 week_ret[0] = 0
-
 week_ret = np.delete(week_ret,0)
 
 rf = [float(rf_rate)/100/52 for rf_rate in treasury_period['DGS1MO']]
+rf = rf[:-1]
 excess_ret = week_ret-rf
-
 
 cum_ret = cap/1000000 - 1
 cum_ret = np.delete(cum_ret,0)
@@ -276,9 +282,9 @@ mean_ret = np.mean(excess_ret)
 Sharpe = (mean_ret/ret_vol)*(52**0.5)
 print(Sharpe)
 
-
+date2 = np.delete(date,0)
 plt.figure(figsize=(10, 6))
-plt.plot(date, cum_ex_ret, label='Long-Only EW Portfolio')
+plt.plot(date2, cum_ex_ret, label='Long-Only EW Portfolio')
 plt.ylabel('Cumulative Return')
 plt.title('Performance of Portfolios Constructed with Model on Weekly Frequency Data')
 plt.legend(loc='lower right')
