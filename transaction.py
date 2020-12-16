@@ -12,6 +12,7 @@ import pandas as pd
 import warnings
 from cefpanelreg0 import CEFpanelreg
 from datetime import datetime, date, timedelta
+import statsmodels.api as sm
 """
 STEP1: Input file name
 """
@@ -376,7 +377,7 @@ Sharpe_hedged = (mean_hedged_ret/hedged_ret_vol)*(52**0.5)
 print(Sharpe_hedged)
 
 print(np.mean(hedged_ret)*52)
-print(np.mean(hedged_excess_ret)*52))
+print(np.mean(hedged_excess_ret)*52)
 print(np.std(hedged_ret)*(52**0.5))
 
 
