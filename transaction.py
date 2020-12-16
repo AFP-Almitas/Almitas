@@ -181,11 +181,27 @@ validation2['next_cdpred'] = validation2.groupby('ticker').cdpred.shift(-1).fill
   
 validation2 = validation2.merge(daily_avg_vol_df, on = ['ticker', 'date'], how = 'left')
 
+
+# load S&P500 data to compute CEF beta
+# merge with S&P and Bond data
+rawdata = pd.read_excel(r'S&Pdata.xlsx', skiprows=6, sheet_name=[0,1])
+# merge Barclays Bond index and S&P500 data
+benchmark = rawdata[0].iloc[:,0:3].merge(rawdata[1].iloc[:,0:3], on='Name')
+benchmark.columns = ['Date', 'Bond Price', 'Bond MV', 'S&P Price', 'S&P MV']
+
+# compute returns 
+benchmark['lag Bond Price'] = benchmark['Bond Price'].shift(1)
+benchmark['Bond ret'] = benchmark['Bond Price']/benchmark['lag Bond Price'] - 1
+benchmark['lag S&P Price'] = benchmark['S&P Price'].shift(1)
+benchmark['S&P ret'] = benchmark['S&P Price']/benchmark['lag S&P Price'] - 1
+
+
 begin_cap = 1000000
 bidask = 0.01
 commission = 0.004
 file['outstanding'] = file['marketcap.x']/file['priceclose']
 
+strat_beta = []
 cap = [] 
 cap.append(begin_cap)
 
@@ -259,6 +275,32 @@ for t in range(0, len(date)-1) :
     
     cap.append(ret_w_cost)
     shares_ytd = shares_td 
+    
+    # compute strategy beta
+    top['actual_weight'] = top['money_invested']/sum(top['money_invested'])
+    # select ticker in the portfolio
+    ticker = top.ticker.unique()
+    for i in range(0,len(ticker)) :
+        # select past return data for the relevant ticker
+        ret_data = file.loc[file.ticker==ticker[i]][['ticker', 'date', 'daily_rtn']]
+        ret_data = ret_data.loc[(ret_data.date<date[t]) & (ret_data.date>=benchmark.Date.min())]
+        
+        # use past 1 year data to estimate beta
+        ret_data = ret_data.iloc[max(0,len(ret_data)-252):len(ret_data)]
+        ret_data = ret_data.dropna()
+        
+        # regress cef return on S&P return
+        y = ret_data.daily_rtn.reset_index(drop=True)
+        x = benchmark.loc[benchmark.Date.isin(ret_data.date), 'S&P ret'].reset_index(drop=True)
+        x = sm.add_constant(x)
+    
+        mod = sm.OLS(y, x)
+        res = mod.fit()
+        top.loc[top.ticker==ticker[i],'beta'] = res.params[1]
+        
+    # compute overall portfolio beta at time t
+    strat_beta.append(sum(top['actual_weight']*top['beta']))
+    
 
 cap = np.array(cap)
 cap_shift = np.roll(cap, 1)
@@ -310,7 +352,32 @@ plt.title('Performance of Portfolios Constructed with Model on Weekly Frequency 
 plt.legend(loc='lower right')
 
 
+# plot beta of strategy
+date2 = np.delete(date,0)
+plt.figure(figsize=(10, 6))
+plt.plot(date2, strat_beta, label='Portfolio Beta')
+plt.ylabel('Beta')
+plt.title('Portfolio Beta across Time')
+plt.legend(loc='lower right')
 
+print(np.mean(strat_beta))
+
+# compute hedged return of the strategy
+beta_hedge = strat_beta*benchmark.loc[1:,'S&P ret']
+hedged_ret = week_ret - beta_hedge
+hedged_excess_ret = hedged_ret-rf
+
+cum_hedged_ret = np.cumprod(1+hedged_ret)-1
+
+hedged_ret_vol = np.std(hedged_ret)
+mean_hedged_ret = np.mean(hedged_excess_ret)
+
+Sharpe_hedged = (mean_hedged_ret/hedged_ret_vol)*(52**0.5)
+print(Sharpe_hedged)
+
+print(np.mean(hedged_ret)*52)
+print(np.mean(hedged_excess_ret)*52))
+print(np.std(hedged_ret)*(52**0.5))
 
 
 # compute cumulative returns
