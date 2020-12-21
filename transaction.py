@@ -344,7 +344,7 @@ rf = rf[:-1]
 excess_ret = week_ret-rf
 
 # calculate cumulateive return and cumulative excess return
-cum_ret = cap/1000000 - 1
+cum_ret = cap/begin_cap - 1
 cum_ret = np.delete(cum_ret,0)
 cum_ex_ret = np.cumprod(1+excess_ret)-1
 print(cum_ex_ret)
