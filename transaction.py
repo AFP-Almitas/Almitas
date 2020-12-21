@@ -306,7 +306,7 @@ for t in range(0, len(date)-1) :
     shares_ytd = shares_td 
     
     # compute strategy beta
-    top['actual_weight'] = top['money_invested']/sum(top['money_invested'])
+    top['actual_weight'] = top['money_invested']/cap[t]
     # select ticker in the portfolio
     ticker = top.ticker.unique()
     for i in range(0,len(ticker)) :
