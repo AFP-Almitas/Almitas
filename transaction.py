@@ -25,7 +25,7 @@ STEP2: Input parameters for regression
 - start datetime, end datetime in 'YYYY-MM-DD'
 - y: what you want to predict; default is 'cd'
 - var_pit: Point-in-time independent variables in [variable, lag]; unit in day
-    e.g. ['volume',1] >> regress on lag1 of volume2q y765reszvhui98ytgfc ml[po;kjn  但但他妳他有他有他有但這這有在但在在他]
+    e.g. ['volume',1] >> regress on lag1 of volume
 - var_norm: Normalized independent variables in [variable, lag, length, func]; unit in day
     e.g. [cd,1,3,mean] >> regress on 3-day mean from lag1 of cd
 - fix: Fixed effects; choose one from ['assetclasslevel1','assetclasslevel2','assetclasslevel3']
@@ -35,14 +35,18 @@ file = pd.read_csv(filename, index_col = 0)
 daily_file = pd.read_csv(filename2)
 treasury = pd.read_csv(filename3)
 
+#var_pit = [],
+#var_norm = [['cd',5,5,'sum'],['cd',10,5,'sum'],['cd',1,63,'std'],['navchg',5,21,'sum']
 
+#var_pit = [['cd5',5],['pd',5],['navchg',5]],
+#var_norm = [['pd',5,21,'mean']],
 cef = CEFpanelreg(file)
 cef.result(
         start_datetime = '1999-01-04',
         end_datetime = '2015-12-31',
         y = ['cd5'],
-        var_pit = [['pd',5], ['navchg',5]],
-        var_norm = [['pd',5,10,'mean']],
+        var_pit = [],
+        var_norm = [['cd',5,5,'sum'],['cd',10,5,'sum'],['cd',1,63,'std'],['navchg',5,21,'sum']],
         fix = ['assetclasslevel2'],
         cluster = ['year','ticker']
         )
@@ -171,17 +175,16 @@ for i in range(0, len(date)):
     avg_vol_df.columns = ['ticker', 'avg_daily_vol', 'date']
     
     daily_avg_vol_df = daily_avg_vol_df.append(avg_vol_df)
-'''
-daily_avg_vol= daily_avg_vol_df[['ticker', 'avg_daily_vol', 'date']]
-daily_avg_vol_df = daily_avg_vol_df.reset_index()
-daily_avg_vol_df['']
-'''
-validation2['next_ret'] = validation2.groupby('ticker').ret.shift(-1).fillna(0)
-validation2['next_cdpred'] = validation2.groupby('ticker').cdpred.shift(-1).fillna(0)
 
-  
+# create columns for shifted return and predicted change in discount
+# merge the validation data with average volume
+validation2['next_ret'] = validation2.groupby('ticker').ret.shift(-1).fillna(0)
+validation2['next_cdpred'] = validation2.groupby('ticker').cdpred.shift(-1).fillna(0)  
 validation2 = validation2.merge(daily_avg_vol_df, on = ['ticker', 'date'], how = 'left')
 
+file['outstanding'] = file['marketcap.x']/file['priceclose']
+file['leverage'] = file.groupby('ticker').leverage.ffill()
+file['leverage'] = file.groupby('ticker').leverage.bfill()
 
 # load S&P500 data to compute CEF beta
 # merge with S&P and Bond data
@@ -196,40 +199,40 @@ benchmark['Bond ret'] = benchmark['Bond Price']/benchmark['lag Bond Price'] - 1
 benchmark['lag S&P Price'] = benchmark['S&P Price'].shift(1)
 benchmark['S&P ret'] = benchmark['S&P Price']/benchmark['lag S&P Price'] - 1
 
-
-begin_cap = 1000000
+# Start running the backtesting with capital 1M
+begin_cap = 1000000 
 bidask = 0.01
 commission = 0.004
-file['outstanding'] = file['marketcap.x']/file['priceclose']
 
 strat_beta = []
 cap = [] 
 cap.append(begin_cap)
+portfolio_lev = []
 
 shares = pd.DataFrame()
 
 for t in range(0, len(date)-1) : 
     # sort CEFs into decile in each week, based on cdpred
-    print(t)
-    dt = validation2.loc[validation2['date']==date[t]]
-
-    file['date'] = pd.to_datetime(file['date'])
-
-    dt2 = dt.merge(file[['ticker','date','outstanding']], on = ['ticker','date'], how = 'left')
+    dt = validation2.loc[validation2['date']==date[t]] # validation data at the date
+    
+    file['date'] = pd.to_datetime(file['date']) # CEF fundamantal at the date
+    
+    # merge validation data with CEF fundamentals
+    dt2 = dt.merge(file[['ticker','date','outstanding','leverage']], on = ['ticker','date'], how = 'left')
     
     # form long only EW portfolio from the top decile
     
     dt2['decile'] = pd.qcut(dt2['next_cdpred'], 10, labels=False)
-    
     top = dt2.loc[dt2.decile==9]
-    bot = dt2.loc[dt2.decile==0]
-    #port.loc[t, 'longonly'] = np.mean(dt2.loc[dt2.decile==9]['ret'])
+
     
-    # form long-short EW portfolio from the top and bottom decile
-    #port.loc[t, 'longshort'] = np.mean(dt2.loc[dt2.decile==9]['ret']) - 
-     #   np.mean(dt2.loc[dt2.decile==0]['ret'])
-    cap_each = cap[t]/len(top.index)
+    # calculate the number of CEFs with negative predicted change in discount
+    top_neg_cdpred = top.loc[top.next_cdpred < 0]
     
+    # distribute capital to the CEFs 
+    cap_each = cap[t]/(len(top.index)-len(top_neg_cdpred.index))
+    
+    # calcualte shares for each CEF and the limits
     top['ew_shares'] = cap_each/top['priceclose']
     top['ew_shares'] = np.floor(np.array(top[['ew_shares']]))
     top['vol_limit'] = top['avg_daily_vol']*0.2
@@ -238,43 +241,68 @@ for t in range(0, len(date)-1) :
     top['div_limit_money'] = np.repeat(cap[t]/20, len(top['ticker']))
     top['div_limit_shares'] = np.floor(np.array(top['div_limit_money']/top['priceclose']))
     
+    # calculate the final shares for each CEF
     top['shares_traded'] = np.minimum(top['ew_shares'],top['vol_limit'])
     top['shares_traded'] = np.minimum(top['shares_traded'],top['div_limit_shares'])
     top['shares_traded'] = np.minimum(top['shares_traded'],top['outstanding_limit'])
-    
-    top['money_invested'] = top['shares_traded']*top['priceclose']
-    
 
+    # calculate the money invested in each CEF and returns
+    top['money_invested'] = top['shares_traded']*top['priceclose']    
     top['money_ret'] = top['money_invested'] * (1+top['next_ret'])
+    top = top.reset_index()
     
+    for i in range(0, len(top.index)):
+        if  top['next_cdpred'][i] < 0:
+            top['shares_traded'] [i]= 0
+    
+    # calcualte the leverage ratio of the portfolio
+    top['lev_weight'] = np.repeat(np.nan, len(top.index))
+    for i in range(0, len(top.index)):
+        if ~np.isnan(top['leverage'][i]):
+            top['lev_weight'][i] = top['money_invested'][i]/sum(top['money_invested'])
+        else:
+            top['lev_weight'][i] =0
+    top['lev_weight'] = top['lev_weight']/sum(top['lev_weight'])
+    top['leverage'] = top['leverage'].fillna(0)
+    top['weighted_lev'] = top['lev_weight']*top['leverage']
+    port_lev = sum(top['weighted_lev'])
+    portfolio_lev.append(port_lev) 
+    
+    # the shares today
     shares_td = top[['ticker','date','shares_traded']]
-    
     if t == 0:
         shares_ytd = shares_td
         shares_ytd['shares_traded'] = np.repeat(0, len(shares_td['shares_traded']))
 
+    # calcualte the shares long and short
     compare_shares = shares_td.merge(shares_ytd, on = ['ticker'], how = 'outer').fillna(0)
     compare_shares['buy'] = np.maximum(compare_shares['shares_traded_x'] - compare_shares['shares_traded_y'],
                                        np.repeat(0, len(compare_shares['shares_traded_x'])))
     compare_shares['sell'] = np.maximum(compare_shares['shares_traded_y'] - compare_shares['shares_traded_x'],
                                        np.repeat(0, len(compare_shares['shares_traded_x'])))
-    #shares = shares.append(top[['ticker','date','shares_traded']])
     
     total_shr_buy = sum(compare_shares['buy'])
     total_shr_sell = sum(compare_shares['sell'])
     total_shr = total_shr_buy + total_shr_sell
+    
+    # calculate the capital investe in CEF and treasury
     money_in_CEF = sum(top['money_invested'])
     money_in_treasury = cap[t] - money_in_CEF 
     
+    # calculate the transaction costs
     bidask_fee = total_shr*bidask/2
     commission_fee = total_shr*commission
     tracost = bidask_fee + commission_fee
     
+    # cacluate the before cost return
     tot_ret = sum(top['money_ret']) + money_in_treasury*(1+ (float(treasury_period['DGS1MO'][t])/100)/52)
 
+    # after cost return
     ret_w_cost = tot_ret - tracost
     
     cap.append(ret_w_cost)
+    
+    # store the shares this week for next week to calculate the change
     shares_ytd = shares_td 
     
     # compute strategy beta
@@ -301,27 +329,29 @@ for t in range(0, len(date)-1) :
         
     # compute overall portfolio beta at time t
     strat_beta.append(sum(top['actual_weight']*top['beta']))
-    
 
 cap = np.array(cap)
 cap_shift = np.roll(cap, 1)
 
+# calculate the weekly returns
 week_ret = cap/cap_shift - 1
 week_ret[0] = 0
 week_ret = np.delete(week_ret,0)
 
+# calculate weekly excess return
 rf = [float(rf_rate)/100/52 for rf_rate in treasury_period['DGS1MO']]
 rf = rf[:-1]
 excess_ret = week_ret-rf
 
+# calculate cumulateive return and cumulative excess return
 cum_ret = cap/1000000 - 1
 cum_ret = np.delete(cum_ret,0)
 cum_ex_ret = np.cumprod(1+excess_ret)-1
 print(cum_ex_ret)
 
+# calculate sharpe ratio
 ret_vol = np.std(week_ret)
 mean_ret = np.mean(excess_ret)
-
 Sharpe = (mean_ret/ret_vol)*(52**0.5)
 print(Sharpe)
 
@@ -343,15 +373,22 @@ benchmark['60/40 ret'] = 0.6*benchmark['S&P ret'] + 0.4*benchmark['Bond ret']
 
 benchmark['60/40 cumret'] = np.cumprod(1+benchmark['60/40 ret']) - 1
 
-
+# plot the cumulative return
 date2 = np.delete(date,0)
 plt.figure(figsize=(10, 6))
-plt.plot(date2, cum_ret, label='Long-Only EW Portfolio')
+plt.plot(date2, cum_ret, label='Model1')
 plt.plot(date2, benchmark.loc[1:,'60/40 cumret'], label='60-40 Portfolio')
 plt.ylabel('Cumulative Return')
 plt.title('Performance of Portfolios Constructed with Model on Weekly Frequency Data')
 plt.legend(loc='lower right')
 
+# plot the leverage ratio
+date2 = np.delete(date,0)
+plt.figure(figsize=(10, 6))
+plt.plot(date2, portfolio_lev, label='Model1')
+plt.ylabel('Leverage Ratio')
+plt.title('Portfolio Leverage Ratio')
+plt.legend(loc='lower right')
 
 # plot beta of strategy
 date2 = np.delete(date,0)
@@ -379,6 +416,31 @@ print(Sharpe_hedged)
 print(np.mean(hedged_ret)*52)
 print(np.mean(hedged_excess_ret)*52)
 print(np.std(hedged_ret)*(52**0.5))
+
+
+
+# construct confusion matrix
+conf_mat = validation[y+['cdpred']]
+
+conf_mat.loc[(conf_mat.iloc[:,0] >= 0) & (conf_mat.iloc[:,1] >= 0), 'result'] = 'tp'
+conf_mat.loc[(conf_mat.iloc[:,0] < 0) & (conf_mat.iloc[:,1] < 0), 'result'] = 'tn'
+conf_mat.loc[(conf_mat.iloc[:,0] >= 0) & (conf_mat.iloc[:,1] < 0), 'result'] = 'fn'
+conf_mat.loc[(conf_mat.iloc[:,0] < 0) & (conf_mat.iloc[:,1] >= 0), 'result'] = 'fp'
+
+TP = sum(conf_mat['result'] == 'tp')
+TN = sum(conf_mat['result'] == 'tn')
+FP = sum(conf_mat['result'] == 'fp')
+FN = sum(conf_mat['result'] == 'fn')
+
+
+TPR = TP/(TP+FN)
+Precision = TP/(TP+FP)
+Accuracy = (TP+TN)/(TP+TN+FP+FN)
+print(TPR)
+print(Precision)
+print(Accuracy)
+
+
 
 
 # compute cumulative returns
